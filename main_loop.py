@@ -1,15 +1,17 @@
 import time
 from datetime import datetime
-from rest_fetcher import fetch_sensor_data
+from rest_fetcher import fetch_elec_data
 from display_renderer import render_image, convert_to_epaper_palette, extract_masks
+from log import Log
 
 FETCH_INTERVAL = 60
 
+
 def main_loop():
     now = datetime.now()
-    print(f"Current time: {now}")
+    logger.debug(f"Current time: {now}")
 
-    fetch_sensor_data(now)
+    fetch_elec_data(now)
 
     raise Exception("testing")
 """
@@ -29,9 +31,11 @@ time.sleep(FETCH_INTERVAL)
 """
 
 if __name__ == "__main__":
+    logger = Log.get_logger("main")
+    Log().change_log_level("main", Log.DEBUG)
     while True:
         try:
             main_loop()
         except Exception as e:
-            print(f"[Exception raised in main_loop] {e}")
+            logger.error(f"[Exception raised in main_loop] {e}")
             break
