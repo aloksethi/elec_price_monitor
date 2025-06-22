@@ -94,7 +94,7 @@ def parse_xml(xml_data:str):
         logger.error(f"Unexpected error while parsing XML: {e}")
         raise
 
-def fetch_elec_data(dt:datetime):
+def fetch_elec_data(dt:datetime) ->dict:
 
     api_token = os.environ.get("API_TOKEN")
     if  not api_token:
@@ -113,3 +113,4 @@ def fetch_elec_data(dt:datetime):
     except Exception as e:
         logger.error(f"[ERROR] Failed to fetch API data: {e}")
 
+    return data

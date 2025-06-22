@@ -1,7 +1,8 @@
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from rest_fetcher import fetch_elec_data
 from display_renderer import render_image, convert_to_epaper_palette, extract_masks
+from local_comm import get_device_status
 from log import Log
 
 FETCH_INTERVAL = 60
@@ -10,8 +11,14 @@ FETCH_INTERVAL = 60
 def main_loop():
     now = datetime.now()
     logger.debug(f"Current time: {now}")
+    logger.debug(f"Current time: {now+1}")
 
-    fetch_elec_data(now)
+#make sure the loop runs whenever the hour changes
+    today_data = fetch_elec_data(now)
+    tmrw_data = fetch_elec_data(now + timedelta(days=1))
+    device = get_device_status()
+
+    img = render_image(device, today_data, tmrw_data, now)
 
     raise Exception("testing")
 """
