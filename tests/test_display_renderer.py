@@ -1,4 +1,4 @@
-from display_renderer import render_image
+from display_renderer import render_image, gen_pixel_buff
 from PIL import Image
 from datetime import datetime
 
@@ -21,4 +21,5 @@ def test_render_image():
 
     device = {'batt': 10, 'date': '05-06-2025'}
     image = render_image(device, today_data, tmrw_data, now)
+    gen_pixel_buff(image)
     image.save('test3.png')

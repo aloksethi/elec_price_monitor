@@ -1,10 +1,11 @@
+from log import Log
+import config
 import requests
 import os
 from datetime import datetime, timedelta, timezone
 import xml.etree.ElementTree as ET
-from log import Log
 
-API_URL = "http://localhost:5000/api"
+
 
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.DEBUG)
@@ -82,35 +83,68 @@ def parse_xml(xml_data:str):
             data.append({
                 'date': pos_time.strftime("%d-%m-%Y"),
                 'hour': pos_time.strftime("%H"),
-                'price': float(price.text)
+                'price': round(float(price.text)/10, 3) #converting from e/MWh to c/KWh
             })
         logger.debug(f"{data}")
         logger.info(f"Parsed {len(data)} data points from XML")
         return data
-    except ET.ParseError as e:
+    except Exception as e:  #ET.ParseError
         logger.error(f"XML parsing error: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error while parsing XML: {e}")
-        raise
+        logger.debug(f"Check if reason was returned")
+        try:
+            ns = {'ns': 'urn:iec62325.351:tc57wg16:451-1:acknowledgementdocument:7:0'}
+            reason = root.find('.//ns:Reason/ns:text', ns).text
+            logger.debug(f"Reason found: {reason}")
+        except Exception as e:
+            logger.error(f"Didn't find the reason either: {e}")
+            logger.debug("dumping the xml file")
+            logger.debug(f"{xml_data}")
+    raise
+    # except Exception as e:
+    #     logger.error(f"Unexpected error while parsing XML: {e}")
+    #     raise
 
 def fetch_elec_data(dt:datetime) ->dict:
-
     api_token = os.environ.get("API_TOKEN")
     if  not api_token:
         logger.error("Missing API_TOKEN environment variable")
         raise ValueError("Missing API_TOKEN environment variable")
-    try:
-        response = requests.get(API_URL, timeout=5)
-        response.raise_for_status()
-        data = response.text
-        data = parse_xml(response.text)
-        #print(data)
-        #status = data.get("status", "UNKNOWN")
-        #device = data.get("device", "UNDEFINED")
-        #sensors = [(s.get("name", ""), s.get("status", "")) for s in data.get("sensors", [])]
 
+    start_dt = dt.replace(hour=0, minute=0)
+    end_dt = dt.replace(hour=1, minute=0)
+
+    params = {
+        "securityToken": api_token,
+        "in_Domain": "10YFI-1--------U",
+        "out_Domain": "10YFI-1--------U",
+        "periodStart": start_dt.strftime("%Y%m%d%H%M"),
+        "periodEnd": end_dt.strftime("%Y%m%d%H%M"),
+        "documentType": "A44",
+    }
+    safe_params = params.copy()
+    safe_params["securityToken"] = "*****"
+
+    logger.debug(f"Fetching data with parameters: {safe_params}")
+    try:
+        if config.DEBUG:
+            response = requests.get(config.DBG_API_URL, params=params)
+        else:
+            response = requests.get(config.BASE_URL, params=params)
+
+        response.raise_for_status()
     except Exception as e:
         logger.error(f"[ERROR] Failed to fetch API data: {e}")
 
+    # data = response.text
+    try:
+        data = parse_xml(response.text)
+    except:
+        data = []
+        #print(data)
+
     return data
+
+
+if __name__ == "__main__":
+    dt = datetime.now()
+    fetch_elec_data(dt)

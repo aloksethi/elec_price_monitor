@@ -92,7 +92,7 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime):
         y = start_y + i * row_height
 
         hour = today_data[i]['hour']
-        print(f'{hour = }, {now.hour = }')
+        # print(f'{hour = }, {now.hour = }')
         if int(hour) == now.hour:
             font_to_use = font_row_bold
             txt_col = (255,0,0)
@@ -105,8 +105,8 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime):
         price_tmrw = tmrw_data[i]['price']
 
         draw.text((10, y), f"{hour:>02}:00", font=font_to_use, fill=txt_col)
-        draw.text((100, y), f"{price_today:10.03f}", font=font_to_use, fill=txt_col)
-        draw.text((220, y), f"{price_tmrw:10.03f}", font=font_row, fill=(0, 0, 0))
+        draw.text((100, y), f"{price_today:10.01f}", font=font_to_use, fill=txt_col)
+        draw.text((220, y), f"{price_tmrw:10.01f}", font=font_row, fill=(0, 0, 0))
 
         draw.line((5, y + 2 + row_height, 340, y + 2 + row_height), width=1, fill=(0,0,0))
 
@@ -116,21 +116,37 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime):
     return image
 
 
-def convert_to_epaper_palette(img):
+def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
     img = img.convert("RGB")
-    pixels = img.load()
+    pixels = img.show()
 
-    for y in range(img.height):
-        for x in range(img.width):
-            r, g, b = pixels[x, y]
-            if r > 200 and g > 200 and b > 200:
-                pixels[x, y] = (255, 255, 255)
-            elif r > 180 and g < 100 and b < 100:
-                pixels[x, y] = (255, 0, 0)
-            else:
-                pixels[x, y] = (0, 0, 0)
-    return img
+    width,height = img.size
 
+    black_buffer = bytearray()
+    red_buffer = bytearray()
+
+    for y in range(height):
+        for x in range(0, width, 8):
+            black_byte = 0
+            red_byte = 0
+
+            for i in range(8):
+                pixel = img.getpixel((x + i, y))
+
+                # MSB first, so bit index = 7 - i
+                bit = 1 << (7 - i)
+
+                # Basic thresholding: exact match
+                if pixel == (0, 0, 0):  # Black
+                    black_byte |= bit
+                elif pixel in [(255, 0, 0), (200, 0, 0)]:  # Red (tolerate dark red)
+                    red_byte |= bit
+                # else white or other color → 0 in both
+
+            black_buffer.append(black_byte)
+            red_buffer.append(red_byte)
+
+    return black_buffer, red_buffer
 
 # def extract_masks(epaper_img):
 #     bw_mask = epaper_img.convert('1')
@@ -145,11 +161,11 @@ def convert_to_epaper_palette(img):
 #
 #     return bw_mask, red_mask
 
-if (__name__ == "__main__"):
-
-    device = get_device_status()
-    today_data = fetch_elec_data(datetime.now())
-
-    img = render_image(device, today_data, today_data)
-
-    img.save("output_test.png")
+# if (__name__ == "__main__"):
+#
+#     device = get_device_status()
+#     today_data = fetch_elec_data(datetime.now())
+#
+#     img = render_image(device, today_data, today_data)
+#
+#     img.save("output_test.png")
