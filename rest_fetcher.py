@@ -127,11 +127,7 @@ def fetch_elec_data(dt:datetime) ->dict:
 
     logger.debug(f"Fetching data with parameters: {safe_params}")
     try:
-        if config.DEBUG:
-            response = requests.get(config.DBG_API_URL, params=params)
-        else:
-            response = requests.get(config.BASE_URL, params=params)
-
+        response = requests.get(config.BASE_URL, params=params)
         response.raise_for_status()
     except Exception as e:
         logger.error(f"[ERROR] Failed to fetch API data: {e}")
