@@ -1,9 +1,13 @@
 from PIL import Image, ImageDraw, ImageFont
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
+import config
+from log import Log
+from queue import Empty
+import time
 
 from local_comm import get_device_status
-from rest_fetcher import fetch_elec_data
+# from rest_fetcher import fetch_elec_data
 
 #
 WIDTH, HEIGHT = 648, 480
@@ -16,6 +20,9 @@ ROTATE_DEGREES = -90
 FONT_SIZE_HEADER = 50
 FONT_SIZE_NORM = 20
 ROW_COUNT = 24
+
+logger = Log.get_logger(__name__)
+Log().change_log_level(__name__, Log.DEBUG)
 
 def draw_battery(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, font: ImageFont.ImageFont):
     # Configs
@@ -50,13 +57,13 @@ def get_font(font_name, font_size):
     for path in font_paths:
         filename = path.split('/')[-1].split('\\')[-1]
         if filename.lower() == (font_name.lower() + '.ttf'):
-            print(f'found font {path = }, {font_size =}')
+            logger.debug(f'found font {path = }, {font_size =}')
             return ImageFont.truetype(path, font_size)
 
-    print(f'Failed to find font: {font_name = }, {font_size = }')
+    logger.error(f'Failed to find font: {font_name = }, {font_size = }')
     raise Exception("Failed to find font")
     #return font_path;
-def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime):
+def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> Image.Image:
     image = Image.new('RGB', (WIDTH, HEIGHT), 'white')
     draw = ImageDraw.Draw(image)
 
@@ -115,10 +122,9 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime):
 
     return image
 
-
 def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
     img = img.convert("RGB")
-    pixels = img.show()
+    # pixels = img.show()
 
     width,height = img.size
 
@@ -148,24 +154,55 @@ def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
 
     return black_buffer, red_buffer
 
-# def extract_masks(epaper_img):
-#     bw_mask = epaper_img.convert('1')
-#     red_mask = Image.new('1', epaper_img.size, color=1)
-#     epixels = epaper_img.load()
-#     rpixels = red_mask.load()
-#
-#     for y in range(epaper_img.height):
-#         for x in range(epaper_img.width):
-#             if epixels[x, y] == (255, 0, 0):
-#                 rpixels[x, y] = 0
-#
-#     return bw_mask, red_mask
+def renderer_loop(elec_data_queue, status_queue, img_data_queue):
+    latest_today_data = []
+    latest_tmrw_data = []
+    latest_device = {'batt': 0, 'date': '00-00-0000'}
 
-# if (__name__ == "__main__"):
-#
-#     device = get_device_status()
-#     today_data = fetch_elec_data(datetime.now())
-#
-#     img = render_image(device, today_data, today_data)
-#
-#     img.save("output_test.png")
+    data = elec_data_queue.get()  # BLOCKING: wait for first data
+    latest_today_data = data.get("today", [])
+    latest_tmrw_data = data.get("tmrw", [])
+
+    if not latest_today_data:
+        logger.error(f"should not have gotten empty data. Killing the thread.")
+        raise RuntimeError("Invalid data: 'today' dataset is missing or empty.")
+
+    while True:
+        try:
+            now = datetime.now()
+            try:
+                while not elec_data_queue.empty(): # empty the queue
+                    data = elec_data_queue.get_nowait()
+                    latest_today_data = data.get("today", [])
+                    latest_tmrw_data = data.get("tmrw", []) #lets do "safe" access
+                    if (not latest_today_data):
+                        logger.info("No new today data from the queue, using old.")
+                    elif (not latest_tmrw_data):
+                        logger.info("No new tmrw data from the queue, using old.")
+                    else:
+                        logger.debug("Updated electricity data received.")
+            except Empty:
+                pass  # No new data — continue with last known values
+
+            try:
+                latest_device = status_queue.get_nowait()
+                logger.debug(f"Updated device status: {latest_device}")
+            except Empty:
+                logger.debug("No new device info. Using last known device state.")
+
+            try:
+                img = render_image(latest_device, latest_today_data, latest_tmrw_data, now)
+                red_buf, blk_buf = gen_pixel_buff(img)
+                img_data_queue.put((red_buf, blk_buf))
+                logger.info("New image rendered and pushed to img_data_queue.")
+            except Exception as e:
+                logger.error(f"Failed to render image: {e}")
+
+            # --- 4. Sleep until next hour ---
+            next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+            sleep_seconds = (next_hour - datetime.now()).total_seconds()
+            logger.info(f"Sleeping for {int(sleep_seconds) =}.")
+            time.sleep(sleep_seconds)
+        except Exception as e:
+            logger.error(f'Exception in renderer_loop {e}')
+    pass
