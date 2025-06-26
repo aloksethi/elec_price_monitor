@@ -125,6 +125,10 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
 def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
     img = img.convert("RGB")
     # pixels = img.show()
+    if config.DEBUG:
+        now = datetime.now()
+        time_str = now.strftime('%d-%m-%Y-%H-%M-%S')
+        img.save(f'{time_str}_test.png')
 
     width,height = img.size
 

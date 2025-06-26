@@ -9,7 +9,7 @@ import time
 
 
 logger = Log.get_logger(__name__)
-Log().change_log_level(__name__, Log.DEBUG)
+Log().change_log_level(__name__, Log.WARNING)
 
 
 def utc_time_to_local(utc_time:str) -> datetime:
@@ -153,13 +153,11 @@ def fix_elec_data(today_data, tmrw_data) -> tuple[dict, dict]:
     fxd_today_data = [{'date': '', 'hour': i, 'price': float('nan')} for i in range(24)]
     fxd_tmrw_data = [{'date': '', 'hour': i, 'price': float('nan')} for i in range(24)]
 
+    # this part is probably not needed.
     numel = len(today_data)
     if (numel <= 2):# i don;t know how to deal if there are less than three elments in the array, assuming 0 will
         # contain data of yesterday and -1 will contain data of tmrw, so i will use 1 as data of today
         logger.error(f'numel is less than 2 {numel =}')
-
-    # ii = 0
-
 
     # do the fix only if there is no hour=0 entry in today data
     if (int(today_data[0]['hour']) == 0):
@@ -273,8 +271,3 @@ def elec_fetch_loop(queue_out):
 
         logger.debug(f'Going to sleep: {sleep_duration = }')
         time.sleep(sleep_duration)
-
-
-if __name__ == "__main__":
-    dt = datetime.now()
-    fetch_elec_data(dt)
