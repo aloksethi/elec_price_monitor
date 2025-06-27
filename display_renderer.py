@@ -1,3 +1,5 @@
+import queue
+
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
@@ -9,14 +11,13 @@ import time
 from local_comm import get_device_status
 # from rest_fetcher import fetch_elec_data
 
-#
+# no way render_iamge will work correctly if these parameters change, so no point in putting them in config
 WIDTH, HEIGHT = 648, 480
 BAT_BODY_WIDTH = 65
 BAT_BODY_HEIGHT = 25
 BAT_STUB_WIDTH = 6
 BAT_STUB_HEIGHT = 10
-
-ROTATE_DEGREES = -90
+# ROTATE_DEGREES = -90
 FONT_SIZE_HEADER = 50
 FONT_SIZE_NORM = 20
 ROW_COUNT = 24
@@ -158,20 +159,25 @@ def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
 
     return black_buffer, red_buffer
 
-def renderer_loop(elec_data_queue, status_queue, img_data_queue):
+def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
     latest_today_data = []
     latest_tmrw_data = []
     latest_device = {'batt': 0, 'date': '00-00-0000'}
 
-    data = elec_data_queue.get()  # BLOCKING: wait for first data
-    latest_today_data = data.get("today", [])
-    latest_tmrw_data = data.get("tmrw", [])
+    while not stop_event.is_set():
+        try:
+            data = elec_data_queue.get(timeout=1.0)  # BLOCKING: wait for first data
+            latest_today_data = data.get("today", [])
+            latest_tmrw_data = data.get("tmrw", [])
+            break
+        except Empty:
+            continue
 
     if not latest_today_data:
         logger.error(f"should not have gotten empty data. Killing the thread.")
         raise RuntimeError("Invalid data: 'today' dataset is missing or empty.")
 
-    while True:
+    while not stop_event.is_set():
         try:
             now = datetime.now()
             try:
@@ -189,8 +195,9 @@ def renderer_loop(elec_data_queue, status_queue, img_data_queue):
                 pass  # No new data — continue with last known values
 
             try:
-                latest_device = status_queue.get_nowait()
-                logger.debug(f"Updated device status: {latest_device}")
+                while not status_queue.empty(): # empty the queue if there is more than one status avlbl
+                    latest_device = status_queue.get_nowait()
+                    logger.debug(f"Updated device status: {latest_device}")
             except Empty:
                 logger.debug("No new device info. Using last known device state.")
 
@@ -206,7 +213,13 @@ def renderer_loop(elec_data_queue, status_queue, img_data_queue):
             next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
             sleep_seconds = (next_hour - datetime.now()).total_seconds()
             logger.info(f"Sleeping for {int(sleep_seconds) =}.")
-            time.sleep(sleep_seconds)
+            for _ in range(sleep_seconds): # this is very bad way of exiting, i donot know any better way yet.
+                time.sleep(1)
+                if stop_event.is_set():
+                    return
+            # time.sleep(sleep_seconds)
         except Exception as e:
             logger.error(f'Exception in renderer_loop {e}')
-    pass
+
+    logger.debug(f'Called to terminate, stopping thread {__name__}')
+    return

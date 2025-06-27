@@ -188,14 +188,14 @@ def fix_elec_data(today_data, tmrw_data) -> tuple[dict, dict]:
             fxd_tmrw_data[i]['price'] = fxd_tmrw_data[i - 1]['price']
 
     return fxd_today_data, fxd_tmrw_data
-def elec_fetch_loop(queue_out):
+def elec_fetch_loop(stop_event, queue_out):
     today_data = []
     tmrw_data = []
 
     last_sent_data = None
     last_fetch_date = None
 
-    while True:
+    while not stop_event.is_set():
         try:
             now = datetime.now()
             today_str = now.strftime('%d.%m.%Y')
@@ -263,7 +263,14 @@ def elec_fetch_loop(queue_out):
 
         except Exception as e:
             logger.error(f'Exception in elec_fetch_loop: {e}')
+            if isinstance(e, ValueError):
+                logger.error(f'Cannot return from this. bye.')
+                return
             sleep_duration = config.SLEEP_DUR_NO_DATA
 
         logger.debug(f'Going to sleep: {sleep_duration = }')
-        time.sleep(sleep_duration)
+        for _ in range(sleep_duration):  # this is very bad way of sleeping, sleep for a second and check if main called u to exit.
+            time.sleep(1)
+            if stop_event.is_set():
+                return
+        # time.sleep(sleep_duration)
