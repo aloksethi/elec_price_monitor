@@ -34,7 +34,7 @@ class Log:
         """
         if not Log._initialized:
             # Define logging format and directory settings, instance varaibles (log_format, date_format etc)
-            self.log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            self.log_format = '%(asctime)s - %(name)s - %(levelname)s [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
             self.date_format = '%Y-%m-%d %H:%M:%S'
             self.log_dir = Path('logs')
             self.log_dir.mkdir(exist_ok=True)
