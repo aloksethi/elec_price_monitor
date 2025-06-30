@@ -7,6 +7,7 @@ import config
 from log import Log
 from queue import Empty
 import time
+import zlib
 
 from local_comm import get_device_status
 # from rest_fetcher import fetch_elec_data
@@ -159,6 +160,31 @@ def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
 
     return black_buffer, red_buffer
 
+# def rle_encode(data: bytes) -> bytes:
+#     """Run-Length Encode a bytes-like object.
+#     Output format: [value][count][value][count]...
+#     """
+#     if not data:
+#         return b""
+#
+#     output = bytearray()
+#     prev_byte = data[0]
+#     count = 1
+#
+#     for b in data[1:]:
+#         if b == prev_byte and count < 255:
+#             count += 1
+#         else:
+#             output.append(prev_byte)
+#             output.append(count)
+#             prev_byte = b
+#             count = 1
+#
+#     # Add last run
+#     output.append(prev_byte)
+#     output.append(count)
+#
+#     return bytes(output)
 def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
     latest_today_data = []
     latest_tmrw_data = []
@@ -204,14 +230,20 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
             try:
                 img = render_image(latest_device, latest_today_data, latest_tmrw_data, now)
                 red_buf, blk_buf = gen_pixel_buff(img)
-                img_data_queue.put((red_buf, blk_buf))
-                logger.info("New image rendered and pushed to img_data_queue.")
+                # red_encoded_buf = rle_encode(red_buf)
+                # img_data_queue.put((red_buf, blk_buf))
+                red_zlib_buf = zlib.compress(red_buf, 9)
+                blk_zlib_buf = zlib.compress(blk_buf, 9)
+                img_data_queue.put((red_zlib_buf, blk_zlib_buf))
+                # logger.error(f'{len(red_buf) =} -- {len(red_encoded_buf) =} -- {len(red_zlib_buf) =} -- {len(blk_zlib_buf) =}')
+                logger.info(f"New image rendered and pushed to img_data_queue.{len(red_zlib_buf) =} -- {len(blk_zlib_buf) =}")
             except Exception as e:
                 logger.error(f"Failed to render image: {e}")
 
             # --- 4. Sleep until next hour ---
             next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-            sleep_seconds = (next_hour - datetime.now()).total_seconds()
+            # sleep_seconds = (next_hour - datetime.now().replace(second=0, microsecond=0)).total_seconds()
+            sleep_seconds = (next_hour - datetime.now().replace(microsecond=0)).seconds
             logger.info(f"Sleeping for {int(sleep_seconds) =}.")
             for _ in range(sleep_seconds): # this is very bad way of exiting, i donot know any better way yet.
                 time.sleep(1)
