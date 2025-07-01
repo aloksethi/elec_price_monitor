@@ -1,5 +1,3 @@
-import queue
-
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
@@ -9,7 +7,6 @@ from queue import Empty
 import time
 import zlib
 
-from local_comm import get_device_status
 # from rest_fetcher import fetch_elec_data
 
 # no way render_iamge will work correctly if these parameters change, so no point in putting them in config
@@ -232,10 +229,10 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
                 img_data_queue.put((red_zlib_buf, blk_zlib_buf))
                 if (config.DEBUG and config.DUMP_IMG_BUFF):
                     logger.debug(f"Saving raw buffers")
-                    with open('red_buf_bin','wb') as f: f.write(red_buf)
-                    with open('blk_buf_bin', 'wb') as f: f.write(blk_buf)
-                    with open('red_buf_zbin', 'wb') as f: f.write(red_zlib_buf)
-                    with open('blk_buf_zbin', 'wb') as f: f.write(blk_zlib_buf)
+                    with open('../../red_buf_bin', 'wb') as f: f.write(red_buf)
+                    with open('../../blk_buf_bin', 'wb') as f: f.write(blk_buf)
+                    with open('../../red_buf_zbin', 'wb') as f: f.write(red_zlib_buf)
+                    with open('../../blk_buf_zbin', 'wb') as f: f.write(blk_zlib_buf)
                     img.save(f'gen_img.png')
                 # logger.error(f'{len(red_buf) =} -- {len(red_encoded_buf) =} -- {len(red_zlib_buf) =} -- {len(blk_zlib_buf) =}')
                 logger.info(f"New image rendered and pushed to img_data_queue.{len(red_zlib_buf) =} -- {len(blk_zlib_buf) =}")

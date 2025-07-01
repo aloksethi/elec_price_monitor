@@ -1,11 +1,10 @@
 import errno
 
 from log import Log
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import config
 import socket
 import time
-import queue
 import struct
 
 logger = Log.get_logger(__name__)
@@ -73,8 +72,8 @@ def send_chunked_data(data, msg_type, send_sock:socket.socket, uC_addr:tuple[str
     else:
         chunk_size = config.CHUNK_SIZE
 
-    if (total_len > config.CHUNK_SIZE*config.MAX_SEQ_NUM):
-        logger.error(f"There is going to be image data loss {total_len = } > {config.CHUNK_SIZE*config.MAX_SEQ_NUM}")
+    if (total_len > config.CHUNK_SIZE* config.MAX_SEQ_NUM):
+        logger.error(f"There is going to be image data loss {total_len = } > {config.CHUNK_SIZE * config.MAX_SEQ_NUM}")
 
     seq_num = 0
     offset = 0

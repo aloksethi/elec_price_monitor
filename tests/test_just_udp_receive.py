@@ -1,7 +1,7 @@
 import socket
 import struct
 import zlib
-import config
+from src.elec_price_monitor import config
 
 # === CONFIG ===
 UDP_IP = "0.0.0.0"      # Listen on all interfaces

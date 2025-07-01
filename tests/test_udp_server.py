@@ -1,7 +1,8 @@
 import socket
 import struct
 import time
-import config
+from src.elec_price_monitor import config
+
 
 def pico_test_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -25,7 +26,7 @@ def pico_test_server():
                 print(f"Sent batt status to device_loop")
             elif choice == '2':
                 # Send req. for time sync
-                msg = struct.pack('>BHB', config.MSG_TYPE_TIME_SYNC, 0,0)
+                msg = struct.pack('>BHB', config.MSG_TYPE_TIME_SYNC, 0, 0)
                 sock.sendto(msg, dest)
                 print(f"Sent req for time sync to device_loop")
             elif choice == '3':

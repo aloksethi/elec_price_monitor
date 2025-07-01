@@ -1,5 +1,5 @@
 from datetime import datetime
-from rest_fetcher import fetch_elec_data
+from src.elec_price_monitor.rest_fetcher import fetch_elec_data
 
 def test_fetch_elect_data():
     now = datetime.now()

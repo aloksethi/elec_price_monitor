@@ -1,4 +1,4 @@
-from display_renderer import render_image, gen_pixel_buff
+from src.elec_price_monitor.display_renderer import render_image, gen_pixel_buff
 from PIL import Image
 from datetime import datetime
 

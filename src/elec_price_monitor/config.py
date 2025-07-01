@@ -4,7 +4,7 @@ from log import Log
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.DEBUG)
 
-DEBUG = False
+DEBUG = True
 MOCK_REST_DATA = False
 DUMP_IMG_BUFF = False
 
