@@ -1,8 +1,8 @@
-from rest_fetcher import elec_fetch_loop
-from display_renderer import renderer_loop
-from local_comm import device_loop
-from log import Log
-import config
+from .rest_fetcher import elec_fetch_loop
+from .display_renderer import renderer_loop
+from .local_comm import device_loop
+from .log import Log
+from . import config
 import argparse
 
 import threading
@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument("--uc-port", type=int, help="UDP port uC is listening on")
     return parser.parse_args()
 
-if __name__ == "__main__":
+def main():
     now = datetime.now()
     logger.debug(f"Started the main program at current time: {now}.")
     args = parse_args()
@@ -88,3 +88,6 @@ if __name__ == "__main__":
         # except Exception as e:
         #     logger.error(f"[Exception raised in main_loop] {e}")
         #     break
+
+if __name__ == "__main__":
+    main()

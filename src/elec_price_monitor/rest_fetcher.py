@@ -1,5 +1,5 @@
-from log import Log
-import config
+from .log import Log
+from . import config
 import requests
 import os
 from datetime import datetime, timedelta, timezone

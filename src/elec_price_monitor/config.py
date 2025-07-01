@@ -1,5 +1,5 @@
 import struct
-from log import Log
+from .log import Log
 
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.DEBUG)

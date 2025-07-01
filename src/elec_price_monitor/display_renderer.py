@@ -1,12 +1,11 @@
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
 import matplotlib.font_manager as fm
-import config
-from log import Log
 from queue import Empty
 import time
 import zlib
-
+from . import config
+from .log import Log
 # from rest_fetcher import fetch_elec_data
 
 # no way render_iamge will work correctly if these parameters change, so no point in putting them in config

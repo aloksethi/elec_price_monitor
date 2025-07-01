@@ -1,8 +1,7 @@
-import errno
-
-from log import Log
+from .log import Log
+from . import config
 from datetime import datetime
-import config
+import errno
 import socket
 import time
 import struct
