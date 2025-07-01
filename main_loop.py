@@ -3,6 +3,7 @@ from display_renderer import renderer_loop
 from local_comm import device_loop
 from log import Log
 import config
+import argparse
 
 import threading
 import sys
@@ -10,41 +11,31 @@ import time
 from datetime import datetime, timedelta, time as dt_time
 from queue import Queue
 
-FETCH_INTERVAL = 60
+
 
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.DEBUG)
 
 
 
-# def main_loop():
-#     now = datetime.now()
-#     logger.debug(f"Current time: {now}")
-#
-# #make sure the loop runs whenever the hour changes
-#
-#
-#
-#
-#     device = get_device_status()
-#     #
-#     # two issues, first the data maynot have 24 enteries even for a day as the api will return no data for an hour if
-#     # the price is exactly the same as previos price. second issue is the last entry is for 00 hr of the next day so it should be treated like that
-#
-#     img = render_image(device, fxd_today_data, fxd_today_data, now)
-#     img.save('test3.png')
-#     # raise Exception("testing")
-"""
-    print("[INFO] Updating display...")
-
-
-
-time.sleep(FETCH_INTERVAL)
-"""
+def parse_args():
+    parser = argparse.ArgumentParser(description="Electricity Price Monitor")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--dump_img_buf", action="store_true", help="Save the image buuffers on file")
+    parser.add_argument("--py-port", type=int, help="UDP port to listen on")
+    parser.add_argument("--uc-port", type=int, help="UDP port uC is listening on")
+    return parser.parse_args()
 
 if __name__ == "__main__":
     now = datetime.now()
     logger.debug(f"Started the main program at current time: {now}.")
+    args = parse_args()
+    config.update_from_args(args)
+
+    logger.debug(f"{config.DEBUG = }")
+    logger.debug(f"{config.DUMP_IMG_BUFF = }")
+    logger.debug(f"{config.PY_PORT = }")
+    logger.debug(f"{config.UC_PORT = }")
 
     elec_data_queue = Queue() #used for transfering data from rest_fetcher to display_renderer module,
     img_data_queue = Queue() #for transfering rendered image to the local server

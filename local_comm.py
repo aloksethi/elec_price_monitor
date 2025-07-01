@@ -10,8 +10,6 @@ import struct
 
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.DEBUG)
-def start_lcl_server():
-    logger.info("Started local server")
 
 
 def get_device_status() ->dict:
@@ -74,6 +72,9 @@ def send_chunked_data(data, msg_type, send_sock:socket.socket, uC_addr:tuple[str
         chunk_size = total_len
     else:
         chunk_size = config.CHUNK_SIZE
+
+    if (total_len > config.CHUNK_SIZE*config.MAX_SEQ_NUM):
+        logger.error(f"There is going to be image data loss {total_len = } > {config.CHUNK_SIZE*config.MAX_SEQ_NUM}")
 
     seq_num = 0
     offset = 0

@@ -127,11 +127,6 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
 def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
     img = img.convert("RGB")
     # pixels = img.show()
-    if config.DEBUG:
-        now = datetime.now()
-        time_str = now.strftime('%d-%m-%Y-%H-%M-%S')
-        img.save(f'{time_str}_test.png')
-
     width,height = img.size
 
     black_buffer = bytearray()
@@ -235,6 +230,13 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
                 red_zlib_buf = zlib.compress(red_buf, 9)
                 blk_zlib_buf = zlib.compress(blk_buf, 9)
                 img_data_queue.put((red_zlib_buf, blk_zlib_buf))
+                if (config.DEBUG and config.DUMP_IMG_BUFF):
+                    logger.debug(f"Saving raw buffers")
+                    with open('red_buf_bin','wb') as f: f.write(red_buf)
+                    with open('blk_buf_bin', 'wb') as f: f.write(blk_buf)
+                    with open('red_buf_zbin', 'wb') as f: f.write(red_zlib_buf)
+                    with open('blk_buf_zbin', 'wb') as f: f.write(blk_zlib_buf)
+                    img.save(f'gen_img.png')
                 # logger.error(f'{len(red_buf) =} -- {len(red_encoded_buf) =} -- {len(red_zlib_buf) =} -- {len(blk_zlib_buf) =}')
                 logger.info(f"New image rendered and pushed to img_data_queue.{len(red_zlib_buf) =} -- {len(blk_zlib_buf) =}")
             except Exception as e:

@@ -1,0 +1,4 @@
+prune venv
+prune logs
+prune test_data
+prune tests
