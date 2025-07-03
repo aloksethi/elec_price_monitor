@@ -177,15 +177,16 @@ def fix_elec_data(today_data, tmrw_data) -> tuple[dict, dict]:
         else:
             fxd_today_data[i]['price'] = fxd_today_data[i-1]['price']
 
-    ii = 0
-    for i in range(1, 24):
-        fxd_tmrw_data[i]['date'] = tmrw_data[0]['date']
-        fxd_tmrw_data[i]['hour'] = (i)
-        if (int(tmrw_data[ii]['hour']) == i):
-            fxd_tmrw_data[i]['price'] = tmrw_data[ii]['price']
-            ii = ii + 1
-        else:
-            fxd_tmrw_data[i]['price'] = fxd_tmrw_data[i - 1]['price']
+    if (len(tmrw_data) > 0):
+        ii = 0
+        for i in range(1, 24):
+            fxd_tmrw_data[i]['date'] = tmrw_data[0]['date']
+            fxd_tmrw_data[i]['hour'] = (i)
+            if (int(tmrw_data[ii]['hour']) == i):
+                fxd_tmrw_data[i]['price'] = tmrw_data[ii]['price']
+                ii = ii + 1
+            else:
+                fxd_tmrw_data[i]['price'] = fxd_tmrw_data[i - 1]['price']
 
     return fxd_today_data, fxd_tmrw_data
 def elec_fetch_loop(stop_event, queue_out):
