@@ -1,8 +1,5 @@
 import struct
-from .log import Log
 
-logger = Log.get_logger(__name__)
-Log().change_log_level(__name__, Log.DEBUG)
 
 DEBUG = True
 MOCK_REST_DATA = False
@@ -62,13 +59,9 @@ def update_from_args(args):
     global DEBUG, DUMP_IMG_BUFF, PY_PORT, UC_PORT
     if args.debug is not None:
         DEBUG = args.debug
-        logger.debug(f"{DEBUG = }")
     if args.dump_img_buf is not None:
         DUMP_IMG_BUFF = args.debug
-        logger.debug(f"{DUMP_IMG_BUFF = }")
     if args.py_port is not None:
         PY_PORT = args.py_port
-        logger.debug(f"{PY_PORT = }")
     if args.uc_port is not None:
         UC_PORT = args.uc_port
-        logger.debug(f"{UC_PORT = }")
