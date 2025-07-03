@@ -228,11 +228,11 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
                 img_data_queue.put((red_zlib_buf, blk_zlib_buf))
                 if (config.DEBUG and config.DUMP_IMG_BUFF):
                     logger.debug(f"Saving raw buffers")
-                    with open('../../red_buf_bin', 'wb') as f: f.write(red_buf)
-                    with open('../../blk_buf_bin', 'wb') as f: f.write(blk_buf)
-                    with open('../../red_buf_zbin', 'wb') as f: f.write(red_zlib_buf)
-                    with open('../../blk_buf_zbin', 'wb') as f: f.write(blk_zlib_buf)
-                    img.save(f'gen_img.png')
+                    with open(Log().log_dir / "red_buf_bin", 'wb') as f: f.write(red_buf)
+                    with open(Log().log_dir / "blk_buf_bin", 'wb') as f: f.write(blk_buf)
+                    with open(Log().log_dir / "red_buf_zbin", 'wb') as f: f.write(red_zlib_buf)
+                    with open(Log().log_dir / "blk_buf_zbin", 'wb') as f: f.write(blk_zlib_buf)
+                    img.save(Log().log_dir / "gen_img.png")
                 # logger.error(f'{len(red_buf) =} -- {len(red_encoded_buf) =} -- {len(red_zlib_buf) =} -- {len(blk_zlib_buf) =}')
                 logger.info(f"New image rendered and pushed to img_data_queue.{len(red_zlib_buf) =} -- {len(blk_zlib_buf) =}")
             except Exception as e:

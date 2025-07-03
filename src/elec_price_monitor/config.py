@@ -1,6 +1,6 @@
 import struct
 
-
+APP_NAME = "elec_price_monitor"
 DEBUG = True
 MOCK_REST_DATA = False
 DUMP_IMG_BUFF = False

@@ -3,8 +3,8 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-
-
+import platform
+from . import config
 class Log:
     # Class variables/attributes for singleton pattern. they are equivalent to global variables
     _instance = None  # Stores the single instance
@@ -36,13 +36,26 @@ class Log:
             # Define logging format and directory settings, instance varaibles (log_format, date_format etc)
             self.log_format = '%(asctime)s - %(name)s - %(levelname)s [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
             self.date_format = '%Y-%m-%d %H:%M:%S'
-            self.log_dir = Path('./logs')
-            self.log_dir.mkdir(exist_ok=True)
+            self.log_dir = self._get_log_dir()
+            self.log_dir.mkdir(parents=True, exist_ok=True)
             self.log_file = self.log_dir / 'app.log'
             self.default_level = logging.INFO
             self._loggers = {}  # Dictionary to store logger instances
             # Mark initialization as complete
             Log._initialized = True
+
+    def _get_log_dir(self):
+        """
+        Pick a log directory depending on OS.
+        """
+        system = platform.system()
+
+        if system == "Windows":
+            # Local to project root
+            return Path.cwd() / "logs"
+        else:
+            # Standard Linux path
+            return Path(f"/var/log/{config.APP_NAME}")
 
     def setup_logger(self, logger_name, level=None):
         """
