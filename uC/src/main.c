@@ -13,20 +13,14 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "config.h"
 
-#define CLIENT_TEST 	1
-#define IPERF_SERVER_IP		"10.10.10.231"
-#ifndef RUN_FREERTOS_ON_CORE
-#define RUN_FREERTOS_ON_CORE 0
-#endif
 
-#define MAIN_TASK_PRIORITY				( tskIDLE_PRIORITY + 2UL )
-#define BLINK_TASK_PRIORITY				( tskIDLE_PRIORITY + 1UL )
 
-#if CLIENT_TEST && !defined(IPERF_SERVER_IP)
-#error IPERF_SERVER_IP not defined
-#endif
+void udp_task(void *params);
+void epaper_task(void *params);
 
+ #if 0
 // Report IP results and exit
 static void iperf_report(void *arg, enum lwiperf_report_type report_type,
                          const ip_addr_t *local_addr, u16_t local_port, const ip_addr_t *remote_addr, u16_t remote_port,
@@ -42,18 +36,12 @@ static void iperf_report(void *arg, enum lwiperf_report_type report_type,
 
     return;
 }
+#endif
 
 void blink_task(__unused void *params) {
     bool on = false;
     printf("blink_task starts\n");
     while (true) {
-#if 0 && configNUMBER_OF_CORES > 1
-        static int last_core_id;
-        if (portGET_CORE_ID() != last_core_id) {
-            last_core_id = portGET_CORE_ID();
-            printf("blinking now from core %d\n", last_core_id);
-        }
-#endif
         cyw43_arch_gpio_put(0, on);
         on = !on;
         vTaskDelay(1000);
@@ -61,12 +49,15 @@ void blink_task(__unused void *params) {
     }
 }
 
-void create_tasks(void)
+void create_rest_tasks(void)
 {
+    xTaskCreate(blink_task, "Blink_Task", STACK_SIZE_BLINK_TASK, NULL, PRIO_BLINK_TASK, NULL);
+    xTaskCreate(udp_task, "UDP_Task", STACK_SIZE_UDP_TASK, NULL, PRIO_UDP_TASK, NULL);
+    xTaskCreate(epaper_task, "ePaper_Task", STACK_SIZE_EPAPER_TASK, NULL, PRIO_EPAPER_TASK, NULL);
 
 	return;	
 }
-void main_task(__unused void *params) {
+void cy43_task(__unused void *params) {
     if (cyw43_arch_init()) {
         printf("failed to initialise\n");
         exit(1);
@@ -82,10 +73,9 @@ void main_task(__unused void *params) {
     printf("Connected to the Wi-Fi.\n");
    
 
-    create_tasks();
+    create_rest_tasks();
 
-    xTaskCreate(blink_task, "BlinkThread", configMINIMAL_STACK_SIZE, NULL, BLINK_TASK_PRIORITY, NULL);
-
+#if 0
     cyw43_arch_lwip_begin();
 #if CLIENT_TEST
     printf("\nReady, running iperf client\n");
@@ -98,7 +88,7 @@ void main_task(__unused void *params) {
     lwiperf_start_tcp_server_default(&iperf_report, NULL);
 #endif
     cyw43_arch_lwip_end();
-
+#endif
     while(true) {
         // not much to do as LED is in another task, and we're using RAW (callback) lwIP API
         vTaskDelay(10000);
@@ -114,7 +104,7 @@ int main( void )
     stdio_init_all();
 
 
-    xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &task);
+    xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, &task);
 
     vTaskStartScheduler();
     return 0;
