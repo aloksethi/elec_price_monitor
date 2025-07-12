@@ -91,10 +91,10 @@ try:
         compressed_message = zlib.compress(original_message.encode('utf-8'), 0)
         sz = len(compressed_message)
         print(sz)
-        payload=struct.pack(f'>BHBB{sz}s',1,sz,0,1,compressed_message)
+        payload=struct.pack(f'>BHBB{sz}s',4,sz,0,1,compressed_message)
         #sock.sendto(compressed_message, (PICO_IP, PICO_RX_PORT))
         #sock.sendto(payload, (PICO_IP, PICO_RX_PORT))
-        send_chunked_data(compressed_message, 1, sock, (PICO_IP, PICO_RX_PORT))
+        send_chunked_data(compressed_message, 4, sock, (PICO_IP, PICO_RX_PORT))
         #print(f"Sent compressed message ({len(compressed_message)} bytes) to Pico: '{original_message}'")
         print(f"Sent compressed message ({len(compressed_message)} bytes) to Pico")
         

@@ -90,16 +90,19 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 
 		reassembly_len += payload_len;
 
-		// The msg_p->msg_len should contain the total length of the FINAL assembled message.
 		// We check if we have received all the data for the full message.
 		if (reassembly_len >= expected_msg_len)// - offsetof(msg_t, data))) 
 		{
+            udp_qmsg_t qmsg;
 			BaseType_t xHigherPriorityTaskWoken;
 			printf("Full message reassembled. Total payload length: %d\n", reassembly_len);
+            qmsg.idx = g_empty_idx;
+            qmsg.msg_type = msg_p->msg_type;
+            qmsg.msg_len = reassembly_len;
 			// Reset for the next message
 			reassembly_len = 0;
 			expected_seq_num = 0;
-			if (xQueueSendFromISR(g_udp_rx_queue, &g_empty_idx, &xHigherPriorityTaskWoken) == pdPASS) 
+			if (xQueueSendFromISR(g_udp_rx_queue, &qmsg, &xHigherPriorityTaskWoken) == pdPASS) 
 			{
 				// If successfully sent to queue, signal the udp_task that data is available.
 				g_empty_idx = (g_empty_idx + 1)%MAX_DATA_BUFS;
@@ -197,7 +200,7 @@ void udp_task(void *params) {
         printf("FATAL: Failed to create UDP Event Group. Cannot start task.\n");
         return;
     }
-    g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(g_empty_idx));
+    g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
     if (g_udp_rx_queue == NULL)
     {
 	    printf("failed to create udp rx queue\n");
@@ -205,7 +208,7 @@ void udp_task(void *params) {
     }
     while (1) {
 	    EventBits_t uxBits;
-        uint8_t rx_msg;
+        udp_qmsg_t qmsg;
 
         // Wait indefinitely for either the UDP_DATA_RECEIVED_BIT or UDP_TIMER_FIRED_BIT to be set.
         // pdTRUE: Clear the bits in the event group after reading them.
@@ -218,72 +221,37 @@ void udp_task(void *params) {
         				);
 
 	if ((uxBits & UDP_DATA_RECEIVED_BIT) != 0) 
-	{
-		// Retrieve all available messages from the queue.
-		// Loop until the queue is empty (xQueueReceive returns pdFAIL).
-		while (xQueueReceive(g_udp_rx_queue, &rx_msg, 0) == pdPASS) 
-		{ 
-			printf("INFO: Received, queue index:%d\n", rx_msg);
+    {
+        // Retrieve all available messages from the queue.
+        // Loop until the queue is empty (xQueueReceive returns pdFAIL).
+        while (xQueueReceive(g_udp_rx_queue, &qmsg, 0) == pdPASS) 
+        { 
+            printf("INFO: Received, queue index:%d\n", qmsg.idx);
 
-			// --- Decompression using miniz_tinfl ---
-			size_t decompressed_len = 0;
-			// Assuming the payload is a Zlib compressed stream.
-			// If it's raw Deflate, remove TINFL_FLAG_PARSE_ZLIB_HEADER.
-			// If it's Gzip, use TINFL_FLAG_PARSE_GZIP_HEADER.
-			int inflate_flags = TINFL_FLAG_PARSE_ZLIB_HEADER;
+            switch (qmsg.msg_type)
+            {
+                case MSG_TYPE_RIMG_DATA:
+                    {
+                        printf("rimg type received:%d\n", qmsg.msg_type);
+                        deinflate_payload(qmsg.idx);
 
-			// tinfl_decompress_mem_to_heap allocates memory for the decompressed data.
-			// This is memory efficient as it only allocates what's needed, and handles
-			// potential growth if the decompressed size is much larger than compressed.
-			//void *decompressed_data = NULL;
-			 size_t decompressed_data;
-#if 0
-			decompressed_data = tinfl_decompress_mem_to_heap(
-					(void *)(&reassembly_buff[rx_msg][0]), // Input buffer (from pbuf)
-					MAX_MSG_SIZE/*134*/,     // Input buffer length
-					&decompressed_len, // Output: actual decompressed length
-					inflate_flags      // Flags (e.g., Zlib header parsing)
-					);
-#endif
-#if 1
-				void *pSrc_buf = (void *)(&reassembly_buff[rx_msg][0]); // Input buffer (from pbuf)
-				printf("size of disp buff is %d\n",sizeof(disp_buf));
-//				decompressed_len = tinfl_decompress_mem_to_mem((void *)(&disp_buf[0]), sizeof(disp_buf), pSrc_buf, MAX_MSG_SIZE, inflate_flags);
-				//decompressed_len = tinfl_decompress_mem_to_mem((void *)(&disp_buf[0]), sizeof(disp_buf), pSrc_buf, 836, inflate_flags);
-				deinflate_payload(rx_msg);
-#if 0
-			if (decompressed_len > 0) {
+                        break;
+                    }
+                case MSG_TYPE_BIMG_DATA:
+                    {
+                        printf("bimg type received:%d\n", qmsg.msg_type);
+                        deinflate_payload(qmsg.idx);
 
-				printf("INFO: Successfully decompressed  to %d bytes.\n",
-						 (int)decompressed_len);
-
-				// --- Scaffolding: Process Decompressed Data ---
-				// Ensure the decompressed data is null-terminated if you intend to print it as a string
-				// or use string functions. Add a null terminator if space allows.
-				// Note: If decompressed_len is exactly the buffer size, adding null might overflow.
-				// For safety, allocate 1 extra byte for null terminator if needed.
-				// For printing, we can use '%.*s' which handles non-null-terminated strings.
-				printf("DECOMPRESSED DATA: '%d'\n", (int)decompressed_len);
-
-				// Add your specific data processing logic here using 'decompressed_data'
-				// and 'decompressed_len'.
-				// Free the dynamically allocated decompressed data.
-				//MZ_FREE(decompressed_data); // Uses 'free()' internally
-			} else {
-				printf("ERROR: Decompression failed for packet \n");
-				// You might want to log the specific tinfl_status if you use the
-				// tinfl_decompress function directly for more detailed error codes.
-			}
-#endif
-
-#endif
+                        break;
+                    }
+                default:
+                    printf("unhandled message type received:%d\n", qmsg.msg_type);
+            }
 
 
-
-
-		//	vTaskDelay(pdMS_TO_TICKS(1000)); // Nothing to do, LWIP runs in background
-		}
-	}
+            //	vTaskDelay(pdMS_TO_TICKS(1000)); // Nothing to do, LWIP runs in background
+        }
+    }
     }
 }
 

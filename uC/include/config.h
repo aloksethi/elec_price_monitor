@@ -37,10 +37,17 @@ typedef struct UDP_Message
     uint8_t msg_type;  // What type of message (e.g., 1 = status, 2 = ack, etc.)
     uint16_t msg_len;   // Total length of the WHOLE message in bytes
     uint8_t seq_num;   // Sequence number, usefule in case of chunked transmission
-    uint8_t data[];    // Payload (variable length)
+    uint8_t data[];    // Payload (variable length)//flexible array member
 } __attribute__((__packed__)) udp_msg_t;
 
 
+typedef struct
+{
+    uint8_t msg_type;   // What type of message (e.g., 1 = status, 2 = ack, etc.)
+    uint8_t idx;        // index to the reassembly_buff
+    uint16_t msg_len;   // not very useful right now
+//    uint8_t data[];    // Payload (variable length)
+} __attribute__((__packed__)) udp_qmsg_t;
 
 
 #endif
