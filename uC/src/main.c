@@ -97,6 +97,11 @@ void cy43_task(__unused void *params) {
     cyw43_arch_deinit();
 }
 
+void vApplicationStackOverflowHook( TaskHandle_t xTask, char *pcTaskName ) 
+{
+    printf("Stack overflow in task: %s\n", pcTaskName);
+    for( ;; );
+}
 
 int main( void )
 {

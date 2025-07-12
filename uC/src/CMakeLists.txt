@@ -3,6 +3,7 @@ add_executable(${PROJECT_NAME}
 	main.c
 	epaper_handler.c
 	udp_handler.c
+	miniz.c
 )
 
 # linker options
