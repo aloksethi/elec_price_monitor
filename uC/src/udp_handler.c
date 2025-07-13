@@ -10,7 +10,8 @@
 #include "lwip/init.h"
 #include "lwip/netif.h"
 #include "lwip/timeouts.h"
-
+#include "hardware/adc.h"
+#include "pico/cyw43_arch.h"
 #include "config.h"
 #include "miniz.h"
 
@@ -184,6 +185,76 @@ void deinflate_payload(uint8_t rx_msg)
 				status);
 	}
 }
+float read_vsys_voltage() {
+    // Init ADC if not done elsewhere
+    adc_init();
+
+    // Select ADC3 (GPIO29)
+    adc_select_input(3);
+
+    // Read raw 12-bit ADC value
+    uint16_t raw = adc_read();
+
+    // Convert to voltage
+    // RP2040 ADC: 12-bit → 0–4095 maps to 0–3.3V
+    float voltage = raw * 3.3f / 4095.0f;
+
+    // The onboard VSYS sense divides by 3 → scale it back
+    voltage *= 3.0f;
+
+    return voltage;
+}
+#define PICO_VSYS_PIN 29
+#define PICO_FIRST_ADC_PIN 26
+#define PICO_POWER_SAMPLE_COUNT 3
+
+int power_voltage(float *voltage_result) {
+
+adc_init();
+    adc_set_temp_sensor_enabled(true);
+
+#ifndef PICO_VSYS_PIN
+    return PICO_ERROR_NO_DATA;
+#else
+#if CYW43_USES_VSYS_PIN
+    cyw43_thread_enter();
+    // Make sure cyw43 is awake
+    cyw43_arch_gpio_get(CYW43_WL_GPIO_VBUS_PIN);
+#endif
+
+    // setup adc
+    adc_gpio_init(PICO_VSYS_PIN);
+    adc_select_input(PICO_VSYS_PIN - PICO_FIRST_ADC_PIN);
+ 
+    adc_fifo_setup(true, false, 0, false, false);
+    adc_run(true);
+
+    // We seem to read low values initially - this seems to fix it
+    int ignore_count = PICO_POWER_SAMPLE_COUNT;
+    while (!adc_fifo_is_empty() || ignore_count-- > 0) {
+        (void)adc_fifo_get_blocking();
+    }
+
+    // read vsys
+    uint32_t vsys = 0;
+    for(int i = 0; i < PICO_POWER_SAMPLE_COUNT; i++) {
+        uint16_t val = adc_fifo_get_blocking();
+        vsys += val;
+    }
+
+    adc_run(false);
+    adc_fifo_drain();
+
+    vsys /= PICO_POWER_SAMPLE_COUNT;
+#if CYW43_USES_VSYS_PIN
+    cyw43_thread_exit();
+#endif
+    // Generate voltage
+    const float conversion_factor = 3.3f / (1 << 12);
+    *voltage_result = vsys * 3 * conversion_factor;
+    return PICO_OK;
+#endif
+}
 extern volatile uint8_t g_do_not_sleep;
 void udp_task(void *params) {
     struct udp_pcb *pcb = udp_new();
@@ -232,8 +303,12 @@ void udp_task(void *params) {
                 {
                     case MSG_TYPE_RIMG_DATA:
                         {
+                            float v;
                             printf("rimg type received:%d\n", qmsg.msg_type);
                             deinflate_payload(qmsg.idx);
+                            //v = read_vsys_voltage();
+                            power_voltage(&v);
+                            printf("voltage is %f\n",v);
                             g_do_not_sleep = 0;
                             break;
                         }

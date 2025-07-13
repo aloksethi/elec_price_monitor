@@ -26,6 +26,7 @@ target_link_libraries(${PROJECT_NAME}
         FreeRTOS-Kernel-Heap4 # FreeRTOS kernel and dynamic heap
         hardware_gpio
         hardware_sleep
+        hardware_adc
         )
 pico_add_extra_outputs(${PROJECT_NAME})
 # Enable usb output, disable uart output
