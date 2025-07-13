@@ -16,6 +16,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}") # For shared libraries
 
 # Pull in SDK (must be before project)
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+include($ENV{PICO_EXTRAS_PATH}/external/pico_extras_import.cmake)
 # Pull in FreeRTOS
 #include($ENV{FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
