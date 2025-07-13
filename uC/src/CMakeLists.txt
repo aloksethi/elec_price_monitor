@@ -24,6 +24,8 @@ target_link_libraries(${PROJECT_NAME}
         pico_stdlib
         pico_lwip_iperf
         FreeRTOS-Kernel-Heap4 # FreeRTOS kernel and dynamic heap
+        hardware_gpio
+        hardware_sleep
         )
 pico_add_extra_outputs(${PROJECT_NAME})
 # Enable usb output, disable uart output

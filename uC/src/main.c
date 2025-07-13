@@ -15,7 +15,10 @@
 #include "task.h"
 #include "config.h"
 
-
+#include "pico/sleep.h"
+//#include "hardware/rtc.h"
+//#include "hardware/clocks.h"
+//#include "hardware/rosc.h
 
 void udp_task(void *params);
 void epaper_task(void *params);
@@ -44,57 +47,120 @@ void blink_task(__unused void *params) {
     while (true) {
         cyw43_arch_gpio_put(0, on);
         on = !on;
-        vTaskDelay(1000);
+        vTaskDelay(1);
 	//printf("blinking now from core %d\n", portGET_CORE_ID());
     }
 }
 
 void create_rest_tasks(void)
 {
-    xTaskCreate(blink_task, "Blink_Task", STACK_SIZE_BLINK_TASK, NULL, PRIO_BLINK_TASK, NULL);
+//    xTaskCreate(blink_task, "Blink_Task", STACK_SIZE_BLINK_TASK, NULL, PRIO_BLINK_TASK, NULL);
     xTaskCreate(udp_task, "UDP_Task", STACK_SIZE_UDP_TASK, NULL, PRIO_UDP_TASK, NULL);
     xTaskCreate(epaper_task, "ePaper_Task", STACK_SIZE_EPAPER_TASK, NULL, PRIO_EPAPER_TASK, NULL);
 
 	return;	
 }
-void cy43_task(__unused void *params) {
-    if (cyw43_arch_init()) {
-        printf("failed to initialise\n");
-        exit(1);
-        return;
+    TaskHandle_t cyw43_task;
+void print_task_details() {
+    TaskStatus_t *pxTaskStatusArray;
+    UBaseType_t uxArraySize = uxTaskGetNumberOfTasks();
+    
+    pxTaskStatusArray = pvPortMalloc(uxArraySize * sizeof(TaskStatus_t));
+    
+    if (pxTaskStatusArray) {
+        uxArraySize = uxTaskGetSystemState(
+            pxTaskStatusArray,
+            uxArraySize,
+            NULL
+        );
+        
+        for (UBaseType_t i = 0; i < uxArraySize; i++) {
+            printf(
+                "Task: %s, Priority: %u, State: %u\n",
+                pxTaskStatusArray[i].pcTaskName,
+                pxTaskStatusArray[i].uxCurrentPriority,
+                pxTaskStatusArray[i].eCurrentState
+            );
+        }
+        
+        vPortFree(pxTaskStatusArray);
     }
-    cyw43_arch_enable_sta_mode();
-    printf("Connecting to Wi-Fi...\n");
-    if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
-        printf("failed to connect to Wi-Fi.\n");
-        exit(1);
-    } 
-
-    printf("Connected to the Wi-Fi.\n");
-   
-
-    create_rest_tasks();
+}
+void enter_deep_sleep(uint32_t wakeup_pin, bool edge_high) {
+    // Disable WiFi (CYW43)
+ //   cyw43_arch_deinit();
 
 #if 0
-    cyw43_arch_lwip_begin();
-#if CLIENT_TEST
-    printf("\nReady, running iperf client\n");
-    ip_addr_t clientaddr;
-    ip4_addr_set_u32(&clientaddr, ipaddr_addr((IPERF_SERVER_IP)));
-    //ip4_addr_set_u32(&clientaddr, ipaddr_addr(xstr(IPERF_SERVER_IP)));
-    assert(lwiperf_start_tcp_client_default(&clientaddr, &iperf_report, NULL) != NULL);
-#else
-    printf("\nReady, running iperf server at %s\n", ip4addr_ntoa(netif_ip4_addr(netif_list)));
-    lwiperf_start_tcp_server_default(&iperf_report, NULL);
+    // Configure wake-up trigger (GPIO or RTC)
+    if (wakeup_pin != 0) {
+        gpio_set_irq_enabled_with_callback(
+            wakeup_pin,
+            edge_high ? GPIO_IRQ_EDGE_RISE : GPIO_IRQ_EDGE_FALL,
+            true,
+            NULL
+        );
+    }
 #endif
-    cyw43_arch_lwip_end();
-#endif
-    while(true) {
-        // not much to do as LED is in another task, and we're using RAW (callback) lwIP API
+    // Enter DORMANT mode (deepest sleep)
+    sleep_run_from_xosc();  // Ensure XOSC is used for wake-up
+    sleep_goto_dormant_until_pin(wakeup_pin, true, edge_high);
+    
+    // After wake-up, the Pico W reboots from scratch
+}
+void sleep_fxn(void);
+volatile uint8_t g_do_not_sleep = 1;
+void cy43_task(__unused void *params) {
+    static uint8_t onetime = 1;
+    bool on = false;
+    while (true)
+    {
+        if (cyw43_arch_init()) {
+            printf("failed to initialise\n");
+            vTaskDelay(10);
+            continue;
+ //           exit(1);
+ //           return;
+        }
+        cyw43_wifi_pm(&cyw43_state, CYW43_AGGRESSIVE_PM);
+        printf("arch init doen.\n");
+        
+        if (onetime)
+        {
+             create_rest_tasks();
+             onetime = 0;
+        }
+        cyw43_arch_gpio_put(0, on);
+        on = !on;
+
+        cyw43_arch_enable_sta_mode();
+        printf("Connecting to Wi-Fi...\n");
+        if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+            printf("failed to connect to Wi-Fi.\n");
+        vTaskDelay(10);
+//            exit(1);
+            continue;
+        } 
+
+        printf("Connected to the Wi-Fi.\n");
+
+
+        //    create_rest_tasks();
+    while(g_do_not_sleep)
+    {
         vTaskDelay(10000);
     }
+        printf("time to sleep.\n");
 
-    cyw43_arch_deinit();
+
+        cyw43_arch_deinit();
+        printf("deinited the Wi-Fi.\n");
+        //print_task_details();
+        printf("calling dormant sleep now\n");
+        g_do_not_sleep = 1;
+        sleep_fxn();
+//        printf("delete the task.\n");
+//        vTaskDelete(cyw43_task);
+    }
 }
 
 void vApplicationStackOverflowHook( TaskHandle_t xTask, char *pcTaskName ) 
@@ -103,13 +169,40 @@ void vApplicationStackOverflowHook( TaskHandle_t xTask, char *pcTaskName )
     for( ;; );
 }
 
+
+#define WAKE_GPIO   2
+
+void sleep_fxn(void)
+{
+//  while(true) {
+        printf("Switching to XOSC\n");
+        uart_default_tx_wait_blocking();
+
+        // Set the crystal oscillator as the dormant clock source, UART will be reconfigured from here
+        // This is necessary before sending the pico into dormancy
+        sleep_run_from_xosc();
+
+        printf("Going dormant until GPIO %d goes edge high\n", WAKE_GPIO);
+        uart_default_tx_wait_blocking();
+
+        // Go to sleep until we see a high edge on GPIO 10
+        sleep_goto_dormant_until_edge_high(WAKE_GPIO);
+
+        // Re-enabling clock sources and generators.
+        sleep_power_up();
+        printf("Now awake for 10s\n");
+//        sleep_ms(1000 * 10);
+//    }
+}
 int main( void )
 {
     TaskHandle_t task;
     stdio_init_all();
 
+//    sleep_fxn();
 
-    xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, &task);
+    xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, &cyw43_task);
+
 
     vTaskStartScheduler();
     return 0;

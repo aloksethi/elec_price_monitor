@@ -184,7 +184,7 @@ void deinflate_payload(uint8_t rx_msg)
 				status);
 	}
 }
-
+extern volatile uint8_t g_do_not_sleep;
 void udp_task(void *params) {
     struct udp_pcb *pcb = udp_new();
     if (!pcb) {
@@ -207,7 +207,7 @@ void udp_task(void *params) {
 	    return;
     }
     while (1) {
-	    EventBits_t uxBits;
+        EventBits_t uxBits;
         udp_qmsg_t qmsg;
 
         // Wait indefinitely for either the UDP_DATA_RECEIVED_BIT or UDP_TIMER_FIRED_BIT to be set.
@@ -215,43 +215,48 @@ void udp_task(void *params) {
         // pdFALSE: Wait for ANY of the specified bits, not ALL.
         // portMAX_DELAY: Wait indefinitely until one of the bits is set.
         uxBits = xEventGroupWaitBits(g_udp_evnt_grp, UDP_DATA_RECEIVED_BIT | UDP_TIMER_FIRED_BIT,
-				            pdTRUE,  // Clear bits on exit
-				            pdFALSE, // Wait for any bit
-				            portMAX_DELAY // Wait indefinitely
-        				);
+                pdTRUE,  // Clear bits on exit
+                pdFALSE, // Wait for any bit
+                portMAX_DELAY // Wait indefinitely
+                );
 
-	if ((uxBits & UDP_DATA_RECEIVED_BIT) != 0) 
-    {
-        // Retrieve all available messages from the queue.
-        // Loop until the queue is empty (xQueueReceive returns pdFAIL).
-        while (xQueueReceive(g_udp_rx_queue, &qmsg, 0) == pdPASS) 
-        { 
-            printf("INFO: Received, queue index:%d\n", qmsg.idx);
+        if ((uxBits & UDP_DATA_RECEIVED_BIT) != 0) 
+        {
+            // Retrieve all available messages from the queue.
+            // Loop until the queue is empty (xQueueReceive returns pdFAIL).
+            while (xQueueReceive(g_udp_rx_queue, &qmsg, 0) == pdPASS) 
+            { 
+                printf("INFO: Received, queue index:%d\n", qmsg.idx);
 
-            switch (qmsg.msg_type)
-            {
-                case MSG_TYPE_RIMG_DATA:
-                    {
-                        printf("rimg type received:%d\n", qmsg.msg_type);
-                        deinflate_payload(qmsg.idx);
+                switch (qmsg.msg_type)
+                {
+                    case MSG_TYPE_RIMG_DATA:
+                        {
+                            printf("rimg type received:%d\n", qmsg.msg_type);
+                            deinflate_payload(qmsg.idx);
+                            g_do_not_sleep = 0;
+                            break;
+                        }
+                    case MSG_TYPE_BIMG_DATA:
+                        {
+                            printf("bimg type received:%d\n", qmsg.msg_type);
+                            deinflate_payload(qmsg.idx);
+                            g_do_not_sleep = 0;
 
-                        break;
-                    }
-                case MSG_TYPE_BIMG_DATA:
-                    {
-                        printf("bimg type received:%d\n", qmsg.msg_type);
-                        deinflate_payload(qmsg.idx);
+                            break;
+                        }
+                    case MSG_TYPE_TIME_SYNC:
+                        {
 
-                        break;
-                    }
-                default:
-                    printf("unhandled message type received:%d\n", qmsg.msg_type);
+                        }
+                    default:
+                        printf("unhandled message type received:%d\n", qmsg.msg_type);
+                }
+
+
+                //	vTaskDelay(pdMS_TO_TICKS(1000)); // Nothing to do, LWIP runs in background
             }
-
-
-            //	vTaskDelay(pdMS_TO_TICKS(1000)); // Nothing to do, LWIP runs in background
         }
-    }
     }
 }
 
