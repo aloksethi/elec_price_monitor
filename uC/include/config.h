@@ -21,16 +21,20 @@
 // should have used the ip reassembly instead of chunking
 #define CHUNK_SIZE	1400
 #define MAX_SEQ_NUM	5
+#define DISP_BUFF_SIZE	(648*480/8)
+#define MAX_MSG_SIZE (CHUNK_SIZE * MAX_SEQ_NUM)
+#define MAX_DATA_BUFS	2
 
-#define PYTHON_IP_ADD	"127.0.0.1"
-
+//#define PYTHON_IP_ADD	"10.10.10.178"
+#define PYTHON_IP_ADD	"10.10.10.231" /*tux ip */
 
 #define MSG_TYPE_BATT_STATUS 	1 	//pico sends, contains battery status
 #define MSG_TYPE_TIME_SYNC  	2    	//if pico sends, contains no data, python replies with current time
-#define MSG_TYPE_REQ_IMG_DATA	3   	//pico sends to request iamge data. is requested only when pico reboots
-#define MSG_TYPE_RIMG_DATA	4      	//python sends with red channel data
-#define MSG_TYPE_BIMG_DATA	5      	//python sends with blacj channel data
-#define MSG_TYPE_SLEEP_DUR	6      	//python sends to tell pico to sleep for this many seconds, max 3600 seconds
+#define MSG_TYPE_REQ_RIMG_DATA	3   	//pico sends to request Red iamge data.
+#define MSG_TYPE_REQ_BIMG_DATA	4   	//pico sends to request Black iamge data.
+#define MSG_TYPE_RIMG_DATA	    5      	//python sends with red channel data
+#define MSG_TYPE_BIMG_DATA	    6      	//python sends with blacj channel data
+#define MSG_TYPE_SLEEP_DUR	    7      	//python sends to tell pico to sleep for this many seconds, max 3600 seconds
 
 typedef struct UDP_Message 
 {
@@ -50,4 +54,9 @@ typedef struct
 } __attribute__((__packed__)) udp_qmsg_t;
 
 
+// PICO HW related
+#define PICO_FIRST_ADC_PIN      26
+#define PICO_POWER_SAMPLE_COUNT 3
+
+#define UDP_CHUNK_TIMEOUT_MS    10000
 #endif

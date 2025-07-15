@@ -16,30 +16,11 @@
 #include "config.h"
 
 #include "pico/sleep.h"
-//#include "hardware/rtc.h"
-//#include "hardware/clocks.h"
-//#include "hardware/rosc.h
+#include "globals.h"
 
 void udp_task(void *params);
 void epaper_task(void *params);
 
- #if 0
-// Report IP results and exit
-static void iperf_report(void *arg, enum lwiperf_report_type report_type,
-                         const ip_addr_t *local_addr, u16_t local_port, const ip_addr_t *remote_addr, u16_t remote_port,
-                         u32_t bytes_transferred, u32_t ms_duration, u32_t bandwidth_kbitpsec) {
-    static uint32_t total_iperf_megabytes = 0;
-    uint32_t mbytes = bytes_transferred / 1024 / 1024;
-    float mbits = bandwidth_kbitpsec / 1000.0;
-
-    total_iperf_megabytes += mbytes;
-
-    printf("Completed iperf transfer of %d MBytes @ %.1f Mbits/sec\n", mbytes, mbits);
-    printf("Total iperf megabytes since start %d Mbytes\n", total_iperf_megabytes);
-
-    return;
-}
-#endif
 
 void blink_task(__unused void *params) {
     bool on = false;
@@ -109,7 +90,8 @@ void enter_deep_sleep(uint32_t wakeup_pin, bool edge_high) {
 }
 void sleep_fxn(void);
 volatile uint8_t g_do_not_sleep = 1;
-void cy43_task(__unused void *params) {
+void cy43_task(__unused void *params) 
+{
     static uint8_t onetime = 1;
     bool on = false;
     while (true)
@@ -118,37 +100,42 @@ void cy43_task(__unused void *params) {
             printf("failed to initialise\n");
             vTaskDelay(10);
             continue;
- //           exit(1);
- //           return;
+            //           exit(1);
+            //           return;
         }
         cyw43_wifi_pm(&cyw43_state, CYW43_AGGRESSIVE_PM);
         printf("arch init doen.\n");
-        
+
         if (onetime)
         {
-             create_rest_tasks();
-             onetime = 0;
+            create_rest_tasks();
+            onetime = 0;
         }
         cyw43_arch_gpio_put(0, on);
         on = !on;
 
         cyw43_arch_enable_sta_mode();
         printf("Connecting to Wi-Fi...\n");
-        if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+        //if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+        if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK))
+        {
             printf("failed to connect to Wi-Fi.\n");
-        vTaskDelay(10);
-//            exit(1);
+            vTaskDelay(10);
+            //            exit(1);
             continue;
         } 
-
+        
+            xSemaphoreGive(g_wifi_ready_sem);
+        
         printf("Connected to the Wi-Fi.\n");
 
 
+
         //    create_rest_tasks();
-    while(g_do_not_sleep)
-    {
-        vTaskDelay(10000);
-    }
+        while(g_do_not_sleep)
+        {
+            vTaskDelay(100);
+        }
         printf("time to sleep.\n");
 
 
@@ -158,8 +145,8 @@ void cy43_task(__unused void *params) {
         printf("calling dormant sleep now\n");
         g_do_not_sleep = 1;
         sleep_fxn();
-//        printf("delete the task.\n");
-//        vTaskDelete(cyw43_task);
+        //        printf("delete the task.\n");
+        //        vTaskDelete(cyw43_task);
     }
 }
 
@@ -174,7 +161,6 @@ void vApplicationStackOverflowHook( TaskHandle_t xTask, char *pcTaskName )
 
 void sleep_fxn(void)
 {
-//  while(true) {
         printf("Switching to XOSC\n");
         uart_default_tx_wait_blocking();
 
@@ -190,7 +176,7 @@ void sleep_fxn(void)
 
         // Re-enabling clock sources and generators.
         sleep_power_up();
-        printf("Now awake for 10s\n");
+        printf("awake now\n");
 //        sleep_ms(1000 * 10);
 //    }
 }
@@ -198,7 +184,12 @@ int main( void )
 {
     TaskHandle_t task;
     stdio_init_all();
-
+    g_wifi_ready_sem = xSemaphoreCreateBinary();
+    if (g_wifi_ready_sem == NULL) 
+    {
+        printf("failed to create bin sem\n");
+        return -1;
+    }
 //    sleep_fxn();
 
     xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, &cyw43_task);

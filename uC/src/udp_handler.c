@@ -14,16 +14,19 @@
 #include "pico/cyw43_arch.h"
 #include "config.h"
 #include "miniz.h"
+#include "globals.h"
 
 #define UDP_DATA_RECEIVED_BIT (1UL << 0UL) // Bit 0: Set when UDP data arrives
 #define UDP_TIMER_FIRED_BIT   (1UL << 1UL) // Bit 1: Set when the periodic timer fires
 
-#define MAX_MSG_SIZE (CHUNK_SIZE * MAX_SEQ_NUM)
-#define MAX_DATA_BUFS	2
+
+
 uint8_t g_empty_idx = 0;
-uint8_t reassembly_buff[MAX_DATA_BUFS][MAX_MSG_SIZE];
+static struct udp_pcb *g_pcb;
+
 static QueueHandle_t g_udp_rx_queue;
 static EventGroupHandle_t g_udp_evnt_grp;
+static tinfl_decompressor decomp; //allocate globally, needs a lot of memeory on stack otherwise
 
 static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) 
 {
@@ -107,7 +110,7 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 			{
 				// If successfully sent to queue, signal the udp_task that data is available.
 				g_empty_idx = (g_empty_idx + 1)%MAX_DATA_BUFS;
-				xEventGroupSetBitsFromISR(g_udp_evnt_grp, UDP_DATA_RECEIVED_BIT, &xHigherPriorityTaskWoken);
+				//xEventGroupSetBitsFromISR(g_udp_evnt_grp, UDP_DATA_RECEIVED_BIT, &xHigherPriorityTaskWoken);
 			} 
 			else 
 			{
@@ -135,37 +138,27 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 	return;
 }
 
-#define DISP_BUFF_SIZE	(648*480/8)
-uint8_t disp_buf[DISP_BUFF_SIZE];
- // --- Decompression Resources (Static Allocation for Stack Efficiency) ---
-    // Allocate the decompressor state struct statically. This is the key to reducing stack usage.
-    // Its large internal tables will now be in BSS/data memory, not on the task's stack.
-static tinfl_decompressor decomp;
-
-    // Define a maximum expected decompressed payload size.
-    // UDP packets are typically limited to ~1472 bytes payload to avoid IP fragmentation.
-    // If your compression ratio is 1:4, a 1472-byte compressed payload could be ~5.8KB decompressed.
-    // Adjust this based on your actual expected maximum decompressed size.
-    // A value of 4096 bytes (4KB) is a common starting point for small payloads.
-#define MAX_DECOMPRESSED_PAYLOAD_SIZE 4096
-static uint8_t decompressed_output_buffer[MAX_DECOMPRESSED_PAYLOAD_SIZE];
-void deinflate_payload(uint8_t rx_msg)
+ 
+  
+//#define MAX_DECOMPRESSED_PAYLOAD_SIZE 4096
+//static uint8_t decompressed_output_buffer[MAX_DECOMPRESSED_PAYLOAD_SIZE];
+static int8_t deinflate_payload(uint8_t rx_msg_idx)
 {
 	size_t in_buf_size = MAX_MSG_SIZE;//rx_msg.len;
-	size_t out_buf_size = MAX_DECOMPRESSED_PAYLOAD_SIZE; 
+	size_t out_buf_size = DISP_BUFF_SIZE; 
+	void *p_src_buf;
+	int inflate_flags;
+	int8_t ret_val;
 	// Initialize the decompressor for each new decompression operation.
 	tinfl_init(&decomp);
 
-	// Assuming the payload is a Zlib compressed stream.
-	// If it's raw Deflate, remove TINFL_FLAG_PARSE_ZLIB_HEADER.
-	// If it's Gzip, use TINFL_FLAG_PARSE_GZIP_HEADER.
 	// TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF is important as our output buffer is fixed.
-	int inflate_flags = TINFL_FLAG_PARSE_ZLIB_HEADER | TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
+	inflate_flags = TINFL_FLAG_PARSE_ZLIB_HEADER | TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
 
-	void *pSrc_buf = (void *)(&reassembly_buff[rx_msg][0]); // Input buffer (from pbuf)
+	p_src_buf = (void *)(&reassembly_buff[rx_msg_idx][0]); // Input buffer (from pbuf)
 	tinfl_status status = tinfl_decompress(
 			&decomp,                   // Static decompressor state
-			(const mz_uint8*)pSrc_buf, // Input buffer (contiguous)
+			(const mz_uint8*)p_src_buf, // Input buffer (contiguous)
 			&in_buf_size,              // Input size (will be updated by tinfl)
 			disp_buf, // Static output buffer
 			disp_buf, // Static output buffer
@@ -174,163 +167,288 @@ void deinflate_payload(uint8_t rx_msg)
 			);
 
 	if (status == TINFL_STATUS_DONE) {
+		ret_val = 0;
 		printf("INFO: Successfully decompressed to %d bytes.\n",
 				(int)out_buf_size); // out_buf_size now holds actual decompressed length
 
 	} else if (status == TINFL_STATUS_HAS_MORE_OUTPUT) {
 		printf("ERROR: Decompression failed: Output buffer too small \n");
+		ret_val = -1;
 		// This indicates MAX_DECOMPRESSED_PAYLOAD_SIZE needs to be increased.
 	} else {
 		printf("ERROR: Decompression failed with status %d \n",
 				status);
+		ret_val = -2;
 	}
+	return ret_val;
 }
-float read_vsys_voltage() {
-    // Init ADC if not done elsewhere
+
+//#define PICO_VSYS_PIN 29
+
+
+void read_batt_charge(uint8_t *batt_level) 
+{
+    int ignore_count = PICO_POWER_SAMPLE_COUNT;
+    float meas_v;
+    uint32_t vsys = 0;
+    const float conversion_factor = 3.3f / (1 << 12);
+
     adc_init();
-
-    // Select ADC3 (GPIO29)
-    adc_select_input(3);
-
-    // Read raw 12-bit ADC value
-    uint16_t raw = adc_read();
-
-    // Convert to voltage
-    // RP2040 ADC: 12-bit → 0–4095 maps to 0–3.3V
-    float voltage = raw * 3.3f / 4095.0f;
-
-    // The onboard VSYS sense divides by 3 → scale it back
-    voltage *= 3.0f;
-
-    return voltage;
-}
-#define PICO_VSYS_PIN 29
-#define PICO_FIRST_ADC_PIN 26
-#define PICO_POWER_SAMPLE_COUNT 3
-
-int power_voltage(float *voltage_result) {
-
-adc_init();
-    adc_set_temp_sensor_enabled(true);
-
-#ifndef PICO_VSYS_PIN
-    return PICO_ERROR_NO_DATA;
-#else
-#if CYW43_USES_VSYS_PIN
     cyw43_thread_enter();
     // Make sure cyw43 is awake
     cyw43_arch_gpio_get(CYW43_WL_GPIO_VBUS_PIN);
-#endif
 
     // setup adc
     adc_gpio_init(PICO_VSYS_PIN);
     adc_select_input(PICO_VSYS_PIN - PICO_FIRST_ADC_PIN);
- 
+
     adc_fifo_setup(true, false, 0, false, false);
     adc_run(true);
-
+    //printf("vsys_pin:%d, gpio_vbus_pin: %d\n", PICO_VSYS_PIN, CYW43_WL_GPIO_VBUS_PIN);
     // We seem to read low values initially - this seems to fix it
-    int ignore_count = PICO_POWER_SAMPLE_COUNT;
-    while (!adc_fifo_is_empty() || ignore_count-- > 0) {
+    while (!adc_fifo_is_empty() || ignore_count-- > 0) 
+    {
         (void)adc_fifo_get_blocking();
     }
-
     // read vsys
-    uint32_t vsys = 0;
     for(int i = 0; i < PICO_POWER_SAMPLE_COUNT; i++) {
         uint16_t val = adc_fifo_get_blocking();
         vsys += val;
     }
-
     adc_run(false);
     adc_fifo_drain();
 
     vsys /= PICO_POWER_SAMPLE_COUNT;
-#if CYW43_USES_VSYS_PIN
+
     cyw43_thread_exit();
-#endif
     // Generate voltage
-    const float conversion_factor = 3.3f / (1 << 12);
-    *voltage_result = vsys * 3 * conversion_factor;
-    return PICO_OK;
-#endif
+    meas_v = vsys * 3 * conversion_factor;
+    //	printf("voltage: %f \n", meas_v);
+    //	rough levels for a li-ion cell
+    if (meas_v > 4.0) *batt_level = 100;
+    else if (meas_v > 3.7) *batt_level = 75;
+    else if (meas_v > 3.5) *batt_level = 50;
+    else if (meas_v > 3.3) *batt_level = 25;
+    else *batt_level = 5;
+
+    return ;
 }
+void send_udp_packet(uint8_t * payload, uint8_t payload_len)
+{
+	ip_addr_t dest_ip;
+	int32_t err;
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, payload_len, PBUF_RAM);
+    if (p) 
+	{
+        memcpy(p->payload, payload, payload_len);
+        ipaddr_aton(PYTHON_IP_ADD, &dest_ip);
+
+        err = udp_sendto(g_pcb, p, &dest_ip, PY_PORT);
+        pbuf_free(p);
+		if (err)
+		{
+			printf("udp_sendto failed: %d\n", err);
+		}
+    }
+	else
+	{
+		printf("Error:failed to allocate udp_send data\n");
+	}
+
+    return;
+}
+
+void send_battery_level()
+{
+        uint8_t batt_level;
+
+        read_batt_charge(&batt_level);
+
+	udp_msg_t *p_data;
+	uint16_t payload_len = sizeof(udp_msg_t) + 1;
+	p_data = (udp_msg_t *)malloc(payload_len);
+
+	if(p_data)
+	{
+		p_data->msg_type = MSG_TYPE_BATT_STATUS;
+		p_data->msg_len = htons(payload_len);
+		p_data->seq_num = 0;
+		p_data->data[0] = batt_level;
+
+		send_udp_packet((uint8_t *)p_data, payload_len);
+	}
+	else
+	{
+		printf("Error:failed to allocate data for sending battery level\n");
+	}
+	free(p_data);
+
+    return;
+}
+void req_img_data(uint32_t type)
+{
+	udp_msg_t *p_data;
+	uint16_t payload_len = sizeof(udp_msg_t);
+	p_data = (udp_msg_t *)malloc(payload_len);
+
+	if(p_data)
+	{
+		p_data->msg_type = type;
+		p_data->msg_len = htons(payload_len);
+		p_data->seq_num = 0;
+
+		send_udp_packet((uint8_t *)p_data, payload_len);
+	}
+	else
+	{
+		printf("Error:failed to allocate data for sending image data\n");
+	}
+	free(p_data);
+    return;
+}
+void req_rimg_data()
+{
+	req_img_data(MSG_TYPE_REQ_RIMG_DATA);
+}
+void req_bimg_data()
+{
+	req_img_data(MSG_TYPE_REQ_BIMG_DATA);
+}
+
+
 extern volatile uint8_t g_do_not_sleep;
-void udp_task(void *params) {
-    struct udp_pcb *pcb = udp_new();
-    if (!pcb) {
+void udp_task(void *params) 
+{
+    uint8_t tmp=0;
+    g_pcb = udp_new();
+    if (!g_pcb) {
         printf("Failed to create UDP PCB\n");
         vTaskDelete(NULL);
     }
 
-    udp_bind(pcb, IP_ADDR_ANY, UC_PORT);
-    udp_recv(pcb, udp_rx_callback, NULL);
-
+    udp_bind(g_pcb, IP_ADDR_ANY, UC_PORT);
+    udp_recv(g_pcb, udp_rx_callback, NULL);
+#if 0
     g_udp_evnt_grp = xEventGroupCreate();
     if (g_udp_evnt_grp == NULL) {
         printf("FATAL: Failed to create UDP Event Group. Cannot start task.\n");
         return;
     }
+#endif		
     g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
     if (g_udp_rx_queue == NULL)
     {
-	    printf("failed to create udp rx queue\n");
-	    return;
+        printf("failed to create udp rx queue\n");
+        return;
     }
     while (1) {
         EventBits_t uxBits;
         udp_qmsg_t qmsg;
 
-        // Wait indefinitely for either the UDP_DATA_RECEIVED_BIT or UDP_TIMER_FIRED_BIT to be set.
-        // pdTRUE: Clear the bits in the event group after reading them.
-        // pdFALSE: Wait for ANY of the specified bits, not ALL.
-        // portMAX_DELAY: Wait indefinitely until one of the bits is set.
-        uxBits = xEventGroupWaitBits(g_udp_evnt_grp, UDP_DATA_RECEIVED_BIT | UDP_TIMER_FIRED_BIT,
-                pdTRUE,  // Clear bits on exit
-                pdFALSE, // Wait for any bit
-                portMAX_DELAY // Wait indefinitely
-                );
+			printf("waiting the semaphre\n");
 
-        if ((uxBits & UDP_DATA_RECEIVED_BIT) != 0) 
+        if (xSemaphoreTake(g_wifi_ready_sem, portMAX_DELAY) == pdTRUE)
         {
-            // Retrieve all available messages from the queue.
-            // Loop until the queue is empty (xQueueReceive returns pdFAIL).
-            while (xQueueReceive(g_udp_rx_queue, &qmsg, 0) == pdPASS) 
-            { 
-                printf("INFO: Received, queue index:%d\n", qmsg.idx);
+			printf("got the semaphre\n");
+            // 1) Send battery level
+            send_battery_level();
 
-                switch (qmsg.msg_type)
+            while (1)
+            {
+                // 2) Request RED image
+                req_rimg_data();
+
+                if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
                 {
-                    case MSG_TYPE_RIMG_DATA:
-                        {
-                            float v;
-                            printf("rimg type received:%d\n", qmsg.msg_type);
-                            deinflate_payload(qmsg.idx);
-                            //v = read_vsys_voltage();
-                            power_voltage(&v);
-                            printf("voltage is %f\n",v);
-                            g_do_not_sleep = 0;
-                            break;
-                        }
-                    case MSG_TYPE_BIMG_DATA:
-                        {
-                            printf("bimg type received:%d\n", qmsg.msg_type);
-                            deinflate_payload(qmsg.idx);
-                            g_do_not_sleep = 0;
-
-                            break;
-                        }
-                    case MSG_TYPE_TIME_SYNC:
-                        {
-
-                        }
-                    default:
-                        printf("unhandled message type received:%d\n", qmsg.msg_type);
+                    printf("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type);
+                    if (qmsg.msg_type != MSG_TYPE_RIMG_DATA)
+                    {
+                        printf("wrong message type received?expecteing red data\n");
+                        continue;
+                    }
+                    int8_t ret_val;
+                    ret_val = deinflate_payload(qmsg.idx);
+                    if (ret_val == 0)
+                        break;
                 }
-
-
-                //	vTaskDelay(pdMS_TO_TICKS(1000)); // Nothing to do, LWIP runs in background
+                else
+                    continue;
             }
+            // tell epaer to display red data xQueueSend(epaper_queue, &display_cmd, portMAX_DELAY);
+            while (1)
+            {
+                // 4) Request BLACK image
+                req_bimg_data();
+                if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
+                {
+                    printf("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type);
+                    if (qmsg.msg_type != MSG_TYPE_BIMG_DATA)
+                    {
+                        printf("wrong message type received?expecteing black data\n");
+                        continue;
+                    }
+                    int8_t ret_val;
+                    ret_val = deinflate_payload(qmsg.idx);
+                    if (ret_val == 0)
+                        break;
+                }
+                else
+                    continue;
+            }
+            // tell epaer to display black data xQueueSend(epaper_queue, &display_cmd, portMAX_DELAY);
+            // have to sleep now, will send a message
+            g_do_not_sleep = 0;
+#if 0
+            // Wait indefinitely for either the UDP_DATA_RECEIVED_BIT or UDP_TIMER_FIRED_BIT to be set.
+            // pdTRUE: Clear the bits in the event group after reading them.
+            // pdFALSE: Wait for ANY of the specified bits, not ALL.
+            // portMAX_DELAY: Wait indefinitely until one of the bits is set.
+            uxBits = xEventGroupWaitBits(g_udp_evnt_grp, UDP_DATA_RECEIVED_BIT | UDP_TIMER_FIRED_BIT,
+                    pdTRUE,  // Clear bits on exit
+                    pdFALSE, // Wait for any bit
+                    portMAX_DELAY // Wait indefinitely
+                    );
+
+            if ((uxBits & UDP_DATA_RECEIVED_BIT) != 0) 
+            {
+                // Retrieve all available messages from the queue.
+                // Loop until the queue is empty (xQueueReceive returns pdFAIL).
+                while (xQueueReceive(g_udp_rx_queue, &qmsg, 0) == pdPASS) 
+                { 
+                    printf("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type);
+
+                    switch (qmsg.msg_type)
+                    {
+                        case MSG_TYPE_RIMG_DATA:
+                            {
+                                int8_t ret_val;
+                                float v;
+                                ret_val = deinflate_payload(qmsg.idx);
+
+
+                                g_do_not_sleep = 0;
+                                break;
+                            }
+                        case MSG_TYPE_BIMG_DATA:
+                            {
+                                deinflate_payload(qmsg.idx);
+                                g_do_not_sleep = 0;
+
+                                break;
+                            }
+                        case MSG_TYPE_TIME_SYNC:
+                            {
+
+                            }
+                        default:
+                            printf("unhandled message type received:%d\n", qmsg.msg_type);
+                    }
+
+
+                    //	vTaskDelay(pdMS_TO_TICKS(1000)); // Nothing to do, LWIP runs in background
+                }
+            }
+#endif
         }
     }
 }

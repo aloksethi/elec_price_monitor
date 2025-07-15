@@ -50,22 +50,8 @@ print(f"Python UDP server listening on port {PYTHON_LISTEN_PORT}")
 
 sock.settimeout(1) # Set a timeout for receiving data
 
-try:
-    message_counter = 0
-    #while True:
-    while message_counter < 1:
-        try:
-            # Receive data from Pico
-            data, addr = sock.recvfrom(1024) # Buffer size 1024 bytes
-            print(f"Received from Pico ({addr[0]}:{addr[1]}): {data.decode()}")
-
-        except socket.timeout:
-            # No data received within the timeout, continue loop
-            pass
-        except Exception as e:
-            print(f"An error occurred during receive: {e}")
         # Send a compressed message from Python to Pico
-        original_message = f"Hello from Python! This is message number {message_counter}. " \
+original_message = f"Hello from Python! This is message number 1. " \
                            f"This is some repetitive text to make compression effective. " \
                            f"This is some repetitive text to make compression effective. " \
                            f"This is some repetitive text to make compression effective. " \
@@ -83,24 +69,16 @@ try:
                            f"This is some repetitive text to make compression effective. " \
                            f"This is some repetitive text to make compression effective. " \
                            f"The Pico should decompress this. Long live embedded systems!"
-        
+original_message = original_message*3        
 
         # Compress the message using zlib (default compression level)
-        compressed_message = zlib.compress(original_message.encode('utf-8'), 0)
-        sz = len(compressed_message)
-        print(sz)
-        payload=struct.pack(f'>BHBB{sz}s',4,sz,0,1,compressed_message)
-        #sock.sendto(compressed_message, (PICO_IP, PICO_RX_PORT))
-        #sock.sendto(payload, (PICO_IP, PICO_RX_PORT))
-        send_chunked_data(compressed_message, 4, sock, (PICO_IP, PICO_RX_PORT))
-        #print(f"Sent compressed message ({len(compressed_message)} bytes) to Pico: '{original_message}'")
-        print(f"Sent compressed message ({len(compressed_message)} bytes) to Pico")
-        
-        message_counter += 1
-   #     time.sleep(5) # Send every 5 seconds
+compressed_message = zlib.compress(original_message.encode('utf-8'), 0)
+sz = len(compressed_message)
+print(sz)
+send_chunked_data(compressed_message, 6, sock, (PICO_IP, PICO_RX_PORT))
+#print(f"Sent compressed message ({len(compressed_message)} bytes) to Pico: '{original_message}'")
+print(f"Sent compressed message ({len(compressed_message)} bytes) to Pico")
 
-except KeyboardInterrupt:
-    print("\nShutting down Python UDP server.")
-finally:
-    sock.close()
+
+sock.close()
 
