@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument("--dump_img_buf", action="store_true", help="Save the image buuffers on file")
     parser.add_argument("--py-port", type=int, help="UDP port to listen on")
     parser.add_argument("--uc-port", type=int, help="UDP port uC is listening on")
+    parser.add_argument("--uc-ip", type=str, help="IP of uC")
     return parser.parse_args()
 
 def main():

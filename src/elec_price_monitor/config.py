@@ -48,12 +48,14 @@ MSG_TIME_SYNC_LEN = 0 #if pico sends this, then there is no data
 MSG_REQ_IMG_OFFSET = 4
 MSG_REQ_IMG_LEN = 0
 
-MSG_TYPE_BATT_STATUS = 1 # pico sends, contains battery status
-MSG_TYPE_TIME_SYNC = 2    #if pico sends, contains no data, python replies with current time
-MSG_TYPE_REQ_IMG_DATA = 3   #pico sends to request iamge data. is requested only when pico reboots
-MSG_TYPE_RIMG_DATA = 4      #python sends with red channel data
-MSG_TYPE_BIMG_DATA = 5      #python sends with blacj channel data
-MSG_TYPE_SLEEP_DUR = 6      #python sends to tell pico to sleep for this many seconds, max 3600 seconds
+MSG_TYPE_BATT_STATUS = 1 	#pico sends, contains battery status
+MSG_TYPE_TIME_SYNC = 2    	#if pico sends, contains no data, python replies with current time
+MSG_TYPE_REQ_RIMG_DATA = 3   	#pico sends to request Red iamge data.
+MSG_TYPE_REQ_BIMG_DATA = 4   	#pico sends to request Black iamge data.
+MSG_TYPE_RIMG_DATA = 5      	#python sends with red channel data
+MSG_TYPE_BIMG_DATA = 6      	#python sends with blacj channel data
+MSG_TYPE_SLEEP_DUR = 7      	#python sends to tell pico to sleep for this many seconds, max 3600 seconds
+
 
 def update_from_args(args):
     global DEBUG, DUMP_IMG_BUFF, PY_PORT, UC_PORT
@@ -65,3 +67,5 @@ def update_from_args(args):
         PY_PORT = args.py_port
     if args.uc_port is not None:
         UC_PORT = args.uc_port
+    if args.ip is not None:
+        UC_IP = args.ip

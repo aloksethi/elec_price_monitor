@@ -55,7 +55,7 @@ class Log:
             return Path.cwd() / "logs"
         else:
             # Standard Linux path
-            return Path(f"~/{config.APP_NAME}/logs")
+            return Path(f"{config.APP_NAME}/logs")
 
     def setup_logger(self, logger_name, level=None):
         """

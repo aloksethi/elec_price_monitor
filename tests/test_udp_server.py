@@ -1,14 +1,15 @@
 import socket
 import struct
 import time
-from src.elec_price_monitor import config
+from elec_price_monitor import config
 
 
 def pico_test_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('127.0.0.1', config.UC_PORT))
+    # sock.bind(('127.0.0.1', config.UC_PORT))
 
     dest = ('127.0.0.1', config.PY_PORT)  # Match `device_loop`
+    dest = ('10.10.10.178', config.PY_PORT)  # Match `device_loop`
 
     try:
         while True:
