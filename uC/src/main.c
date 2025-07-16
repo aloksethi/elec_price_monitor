@@ -94,6 +94,7 @@ void cy43_task(__unused void *params)
 {
     static uint8_t onetime = 1;
     bool on = false;
+    int ret;
     while (true)
     {
         if (cyw43_arch_init()) {
@@ -103,7 +104,8 @@ void cy43_task(__unused void *params)
             //           exit(1);
             //           return;
         }
-        cyw43_wifi_pm(&cyw43_state, CYW43_AGGRESSIVE_PM);
+        //cyw43_wifi_pm(&cyw43_state, CYW43_AGGRESSIVE_PM);
+        cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
         printf("arch init doen.\n");
 
         if (onetime)
@@ -125,7 +127,18 @@ void cy43_task(__unused void *params)
             continue;
         } 
         
+        ret = cyw43_tcpip_link_status (&cyw43_state, CYW43_ITF_STA);
+        if (ret < 0)
+        printf("error\n");
+        else
+        printf("ret is %d\n",ret);
+        
+        if (ret == CYW43_LINK_UP)
+        {
+            //vTaskDelay(pdMS_TO_TICKS(5000));
             xSemaphoreGive(g_wifi_ready_sem);
+
+        }
         
         printf("Connected to the Wi-Fi.\n");
 
@@ -144,7 +157,7 @@ void cy43_task(__unused void *params)
         //print_task_details();
         printf("calling dormant sleep now\n");
         g_do_not_sleep = 1;
-        sleep_fxn();
+        //sleep_fxn();
         //        printf("delete the task.\n");
         //        vTaskDelete(cyw43_task);
     }
