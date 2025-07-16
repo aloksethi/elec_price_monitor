@@ -113,10 +113,7 @@ def device_loop(stop_event, status_queue, img_data_queue):
         rcv_sock.settimeout(1.0)  # Set timeout for receiving data
 
         send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        if config.UC_IP:
-            uC_addr = (config.UC_IP, config.UC_PORT)  # Change to Pico IP and port
-        else:
-            uC_addr = ('127.0.0.1', config.UC_PORT)
+        uC_addr = (config.UC_IP, config.UC_PORT)  # Change to Pico IP and port
     except Exception as e:
         logger.error(f'Failed to open/bind sockets: {e}. Terminating {__name__} thread')
         return
