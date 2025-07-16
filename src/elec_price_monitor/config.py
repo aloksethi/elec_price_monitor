@@ -16,6 +16,7 @@ else:
 
 PY_PORT = 6666  #udp port for the server running at python
 UC_PORT = 6667  #udp port for the server running at uC
+UC_IP = "127.0.0.1"
 CHUNK_SIZE = 1400 #1400 bytes in one udp packet, image size of one channel is uncompressed 38K n 2K compressed.
 MAX_SEQ_NUM = 5
 """
@@ -58,7 +59,7 @@ MSG_TYPE_SLEEP_DUR = 7      	#python sends to tell pico to sleep for this many s
 
 
 def update_from_args(args):
-    global DEBUG, DUMP_IMG_BUFF, PY_PORT, UC_PORT
+    global DEBUG, DUMP_IMG_BUFF, PY_PORT, UC_PORT, UC_IP
     if args.debug is not None:
         DEBUG = args.debug
     if args.dump_img_buf is not None:
@@ -67,5 +68,5 @@ def update_from_args(args):
         PY_PORT = args.py_port
     if args.uc_port is not None:
         UC_PORT = args.uc_port
-    if args.ip is not None:
-        UC_IP = args.ip
+    if args.uc_ip is not None:
+        UC_IP = args.uc_ip
