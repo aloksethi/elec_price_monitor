@@ -397,6 +397,7 @@ void udp_task(void *params)
             }
             // tell epaer to display black data xQueueSend(epaper_queue, &display_cmd, portMAX_DELAY);
             // have to sleep now, will send a message
+            send_battery_level();
             g_do_not_sleep = 0;
 #if 0
             // Wait indefinitely for either the UDP_DATA_RECEIVED_BIT or UDP_TIMER_FIRED_BIT to be set.
