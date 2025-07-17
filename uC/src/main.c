@@ -99,7 +99,7 @@ void cy43_task(__unused void *params)
     {
         if (cyw43_arch_init()) {
             printf("failed to initialise\n");
-            vTaskDelay(10);
+            vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
             //           exit(1);
             //           return;
@@ -122,8 +122,8 @@ void cy43_task(__unused void *params)
         if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK))
         {
             printf("failed to connect to Wi-Fi.\n");
-            vTaskDelay(10);
-            //            exit(1);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            cyw43_arch_deinit();
             continue;
         } 
         
@@ -152,11 +152,12 @@ void cy43_task(__unused void *params)
         printf("time to sleep.\n");
 
 
-        cyw43_arch_deinit();
+        cyw43_arch_deinit(); //deinit the wifi to save power
         printf("deinited the Wi-Fi.\n");
         //print_task_details();
         printf("calling dormant sleep now\n");
         g_do_not_sleep = 1;
+            vTaskDelay(pdMS_TO_TICKS(10000));
         //sleep_fxn();
         //        printf("delete the task.\n");
         //        vTaskDelete(cyw43_task);
