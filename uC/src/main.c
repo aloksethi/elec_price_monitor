@@ -23,7 +23,7 @@ void create_rest_tasks(void)
 
     return;	
 }
-    TaskHandle_t cyw43_task;
+//    TaskHandle_t cyw43_task; //no need of the task handle
 void print_task_details() 
 {
     TaskStatus_t *pxTaskStatusArray;
@@ -163,7 +163,13 @@ int main( void )
         return -1;
     }
 
-    xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, &cyw43_task);
+    g_udp_epaper_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
+    if (g_udp_epaper_queue == NULL)
+    {
+        printf("failed to create udp-epaper queue\n");
+        return;
+    }
+    xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, NULL);
 
 
     vTaskStartScheduler();

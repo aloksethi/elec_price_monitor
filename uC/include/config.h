@@ -24,6 +24,7 @@
 #define DISP_BUFF_SIZE	        (648*480/8) /*used for allocating memory for decompression buffer*/
 #define MAX_MSG_SIZE            (CHUNK_SIZE * MAX_SEQ_NUM) /*for allocating max size for udp reassembly*/
 #define MAX_DATA_BUFS	        2   /*number of reassemlbed buffers for udp processing. equal to the udp queue length*/
+#define MAX_UDP_EPAPER_QUEUE    1   /*writing only one buffer at a time*/
 
 //#define PYTHON_IP_ADD	        "10.10.10.178"
 #define PYTHON_IP_ADD	        "10.10.10.230" /*tux ip */
