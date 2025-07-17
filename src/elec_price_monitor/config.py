@@ -40,7 +40,7 @@ BASE_HDR_FORMAT = ">BHB"  # 4 bytes uint8_t, uint16_t, uint8_t
 BASE_HDR_SIZE = struct.calcsize(BASE_HDR_FORMAT)
 
 MSG_BATT_OFFSET = BASE_HDR_SIZE  #data returned from the pico
-MSG_BATT_LEN = 1
+MSG_BATT_LEN = (1 + BASE_HDR_SIZE)
 BATT_STATUS_FORMAT = "B"  # 1 byte:
 # BATT_STATUS_SIZE = struct.calcsize(BATT_STATUS_FORMAT)
 
