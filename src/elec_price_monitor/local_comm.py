@@ -166,8 +166,8 @@ def device_loop(stop_event, status_queue, img_data_queue):
                 # msg_type, msg_len = struct.unpack('BB', data[:2])
                 logger.debug(f"received {len(latest_data)=}, {config.BASE_HDR_FORMAT}, {config.BASE_HDR_SIZE}")
                 msg_type, msg_len, seq_num = struct.unpack(config.BASE_HDR_FORMAT, latest_data[:config.BASE_HDR_SIZE])#unpack always returns a tuple
-                if len(latest_data) != (msg_len + config.BASE_HDR_SIZE):
-                    logger.warning(f"Bad length: expected {msg_len + config.BASE_HDR_SIZE}, got {len(latest_data)}")
+                if len(latest_data) != (msg_len): #the length in the header is the total length
+                    logger.warning(f"Bad length: expected {msg_len}, got {len(latest_data)}")
                     continue
 
                 payload_len = msg_len
