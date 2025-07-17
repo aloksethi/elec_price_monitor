@@ -19,19 +19,42 @@ def get_device_status() ->dict:
         'date': now.strftime("%d-%m-%Y")
     }
     return device
-def handle_time_sync_msg(payload_len, payload):
+
+def handle_sleep_dur(payload_len, send_sock, uC_addr):
+    logger.debug(f"Received sleep time message")
+    if payload_len != config.MSG_SLEEP_DUR_LEN:
+        logger.warning(f"sleep time msg not correct size {payload_len =}")
+    tmp = 10 #sleep for 10 seconds. have to calcualte the diff 
+    data = struct.pack(">H", tmp)
+    msg_type = config.MSG_TYPE_SLEEP_DUR
+    send_chunked_data(data, msg_type, send_sock, uC_addr)
+
+
+def handle_time_sync_msg(payload_len, send_sock, uC_addr):
     logger.debug(f"Received time sync message")
     if payload_len != config.MSG_TIME_SYNC_LEN:
         logger.warning(f"time sync msg not correct size {payload_len =}")
+    tmp = datetime.now()
+    data = struct.pack(">HBBBBB", tmp.year, tmp.month, tmp.day, tmp.hour, tmp.minute, tmp.second)
+    msg_type = config.MSG_TYPE_TIME_SYNC
+    send_chunked_data(data, msg_type, send_sock, uC_addr)
 
-    pass
 
-def handle_req_img_data(payload_len, payload, latest_red_buf, latest_blk_buf, send_sock, uC_addr):
-    logger.debug(f"Received img req message")
+def handle_req_bimg_data(payload_len, latest_img_buf, send_sock, uC_addr):
+    logger.debug(f"Received bimg req message")
     if payload_len != config.MSG_REQ_IMG_LEN:
         logger.warning(f"img req msg not correct size {payload_len =}")
 
-    send_img_data(latest_red_buf, latest_blk_buf, send_sock, uC_addr)
+    msg_type = config.MSG_TYPE_BIMG_DATA
+    send_chunked_data(latest_img_buf, msg_type, send_sock, uC_addr)
+
+def handle_req_rimg_data(payload_len, latest_img_buf, send_sock, uC_addr):
+    logger.debug(f"Received rimg req message")
+    if payload_len != config.MSG_REQ_IMG_LEN:
+        logger.warning(f"img req msg not correct size {payload_len =}")
+
+    msg_type = config.MSG_TYPE_RIMG_DATA
+    send_chunked_data(latest_img_buf, msg_type, send_sock, uC_addr)
 
 
 def handle_battery_msg(payload_len, payload, status_queue):
@@ -92,6 +115,7 @@ def send_chunked_data(data, msg_type, send_sock:socket.socket, uC_addr:tuple[str
         logger.error(f"Sent {offset = } but packet length {total_len = }, {seq_num = }")
     else:
         logger.info(f"Sent {offset = } in {seq_num =} chunks")
+'''
 def send_img_data(latest_red_buf, latest_blk_buf, send_sock:socket.socket, uC_addr:tuple[str, int]):
     # payload = struct.pack('BB', config.MSG_TYPE_RIMG_DATA, 1 + len(latest_red_buf)) + struct.pack('II', len(latest_red_buf), len(latest_blk_buf))
     # send_sock.sendto(payload, uC_addr)
@@ -103,7 +127,7 @@ def send_img_data(latest_red_buf, latest_blk_buf, send_sock:socket.socket, uC_ad
     data = latest_blk_buf
     msg_type = config.MSG_TYPE_BIMG_DATA
     send_chunked_data(data, msg_type, send_sock, uC_addr)
-
+'''
 
 def device_loop(stop_event, status_queue, img_data_queue):
     # Create UDP socket
@@ -152,9 +176,13 @@ def device_loop(stop_event, status_queue, img_data_queue):
                 if msg_type == config.MSG_TYPE_BATT_STATUS:
                     handle_battery_msg(payload_len, payload, status_queue)
                 elif msg_type == config.MSG_TYPE_TIME_SYNC:
-                    handle_time_sync_msg(payload_len, payload)
-                elif msg_type == config.MSG_TYPE_REQ_IMG_DATA:
-                    handle_req_img_data(payload_len, payload, latest_red_buf, latest_blk_buf, send_sock, uC_addr)
+                    handle_time_sync_msg(payload_len, send_sock, uC_addr)
+                elif msg_type == config.MSG_TYPE_REQ_RIMG_DATA:
+                    handle_req_rimg_data(payload_len, latest_red_buf, send_sock, uC_addr)
+                elif msg_type == config.MSG_TYPE_REQ_BIMG_DATA:
+                    handle_req_bimg_data(payload_len, latest_blk_buf, send_sock, uC_addr)
+                elif msg_type == config.MSG_TYPE_SLEEP_DUR:
+                    handle_sleep_dur(payload_len, send_sock, uC_addr)
                 else:
                     logger.warning(f"Unknown msg_type: {msg_type}")
 
@@ -164,8 +192,8 @@ def device_loop(stop_event, status_queue, img_data_queue):
                 # Check if there’s new image data to send
             if not img_data_queue.empty():
                 latest_red_buf, latest_blk_buf = img_data_queue.get()
-                logger.info(f"Got new data on the img queue, sending image buffers to Pico")
-                send_img_data(latest_red_buf, latest_blk_buf, send_sock, uC_addr)
+                #logger.info(f"Got new data on the img queue")
+                #send_img_data(latest_red_buf, latest_blk_buf, send_sock, uC_addr)
 
             # Sleep functionality
             sleep_duration =1
