@@ -6,27 +6,27 @@
 
 /* FreeRTOS tasks priorities n stack sizes */
 #define STACK_SIZE_UDP_TASK		(configSTACK_DEPTH_TYPE)1024 /*this value is in words not bytes*/
-#define STACK_SIZE_EPAPER_TASK		(configSTACK_DEPTH_TYPE)1024 /*this value is in words not bytes*/
-#define STACK_SIZE_CY43_TASK		(configSTACK_DEPTH_TYPE)512 /*this value is in words not bytes*/
-#define STACK_SIZE_BLINK_TASK		(configMINIMAL_STACK_SIZE)
+#define STACK_SIZE_EPAPER_TASK	(configSTACK_DEPTH_TYPE)1024 /*this value is in words not bytes*/
+#define STACK_SIZE_CY43_TASK	(configSTACK_DEPTH_TYPE)512 /*this value is in words not bytes*/
+//#define STACK_SIZE_BLINK_TASK	(configMINIMAL_STACK_SIZE)
 
 #define	PRIO_UDP_TASK			(tskIDLE_PRIORITY + 3UL)	
 #define	PRIO_EPAPER_TASK		(tskIDLE_PRIORITY + 4UL)	
 #define PRIO_CY43_TASK			(tskIDLE_PRIORITY + 2UL)
-#define PRIO_BLINK_TASK			(tskIDLE_PRIORITY + 1UL)
+//#define PRIO_BLINK_TASK			(tskIDLE_PRIORITY + 1UL)
 
 // defines from config.py
-#define UC_PORT		6667
-#define PY_PORT		6666
+#define UC_PORT		            6667
+#define PY_PORT		            6666
 // should have used the ip reassembly instead of chunking
-#define CHUNK_SIZE	1400
-#define MAX_SEQ_NUM	5
-#define DISP_BUFF_SIZE	(648*480/8)
-#define MAX_MSG_SIZE (CHUNK_SIZE * MAX_SEQ_NUM)
-#define MAX_DATA_BUFS	2
+#define CHUNK_SIZE	            1400
+#define MAX_SEQ_NUM	            5
+#define DISP_BUFF_SIZE	        (648*480/8) /*used for allocating memory for decompression buffer*/
+#define MAX_MSG_SIZE            (CHUNK_SIZE * MAX_SEQ_NUM) /*for allocating max size for udp reassembly*/
+#define MAX_DATA_BUFS	        2   /*number of reassemlbed buffers for udp processing. equal to the udp queue length*/
 
-//#define PYTHON_IP_ADD	"10.10.10.178"
-#define PYTHON_IP_ADD	"10.10.10.231" /*tux ip */
+//#define PYTHON_IP_ADD	        "10.10.10.178"
+#define PYTHON_IP_ADD	        "10.10.10.230" /*tux ip */
 
 #define MSG_TYPE_BATT_STATUS 	1 	//pico sends, contains battery status
 #define MSG_TYPE_TIME_SYNC  	2    	//if pico sends, contains no data, python replies with current time
@@ -57,6 +57,7 @@ typedef struct
 // PICO HW related
 #define PICO_FIRST_ADC_PIN      26
 #define PICO_POWER_SAMPLE_COUNT 3
+#define PICO_WAKEUP_GPIO        2
 
 #define UDP_CHUNK_TIMEOUT_MS    10000
 #endif

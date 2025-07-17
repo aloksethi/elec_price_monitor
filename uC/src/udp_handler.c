@@ -21,11 +21,11 @@
 
 
 
-uint8_t g_empty_idx = 0;
+static uint8_t g_empty_idx = 0;
 static struct udp_pcb *g_pcb;
 
 static QueueHandle_t g_udp_rx_queue;
-static EventGroupHandle_t g_udp_evnt_grp;
+//static EventGroupHandle_t g_udp_evnt_grp;
 static tinfl_decompressor decomp; //allocate globally, needs a lot of memeory on stack otherwise
 
 static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) 
@@ -326,8 +326,14 @@ void udp_task(void *params)
         vTaskDelete(NULL);
     }
 
+    g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
+    if (g_udp_rx_queue == NULL)
+    {
+        printf("failed to create udp rx queue\n");
+        return;
+    }
     udp_bind(g_pcb, IP_ADDR_ANY, UC_PORT);
-    udp_recv(g_pcb, udp_rx_callback, NULL);
+    udp_recv(g_pcb, udp_rx_callback, NULL); // creat the queue before regitering the callbacak
 #if 0
     g_udp_evnt_grp = xEventGroupCreate();
     if (g_udp_evnt_grp == NULL) {
@@ -335,12 +341,7 @@ void udp_task(void *params)
         return;
     }
 #endif		
-    g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
-    if (g_udp_rx_queue == NULL)
-    {
-        printf("failed to create udp rx queue\n");
-        return;
-    }
+
     while (1) {
         EventBits_t uxBits;
         udp_qmsg_t qmsg;
