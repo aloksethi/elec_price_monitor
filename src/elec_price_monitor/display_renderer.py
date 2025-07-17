@@ -20,7 +20,7 @@ FONT_SIZE_NORM = 20
 ROW_COUNT = 24
 
 logger = Log.get_logger(__name__)
-Log().change_log_level(__name__, Log.DEBUG)
+Log().change_log_level(__name__, Log.INFO)
 
 def draw_battery(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, font: ImageFont.ImageFont):
     # Configs

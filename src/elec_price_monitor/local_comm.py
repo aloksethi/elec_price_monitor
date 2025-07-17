@@ -7,9 +7,9 @@ import time
 import struct
 
 logger = Log.get_logger(__name__)
-Log().change_log_level(__name__, Log.DEBUG)
+Log().change_log_level(__name__, Log.INFO)
 
-
+'''
 def get_device_status() ->dict:
     logger.debug("Getting device status")
     now = datetime.now()
@@ -19,7 +19,7 @@ def get_device_status() ->dict:
         'date': now.strftime("%d-%m-%Y")
     }
     return device
-
+'''
 def handle_sleep_dur(payload_len, send_sock, uC_addr):
     logger.debug(f"Received sleep time message")
     if payload_len != config.MSG_SLEEP_DUR_LEN:
@@ -114,7 +114,7 @@ def send_chunked_data(data, msg_type, send_sock:socket.socket, uC_addr:tuple[str
     if (offset < total_len):
         logger.error(f"Sent {offset = } but packet length {total_len = }, {seq_num = }")
     else:
-        logger.info(f"Sent {offset = } in {seq_num =} chunks")
+        logger.debug(f"Sent {offset = } in {seq_num =} chunks")
 '''
 def send_img_data(latest_red_buf, latest_blk_buf, send_sock:socket.socket, uC_addr:tuple[str, int]):
     # payload = struct.pack('BB', config.MSG_TYPE_RIMG_DATA, 1 + len(latest_red_buf)) + struct.pack('II', len(latest_red_buf), len(latest_blk_buf))

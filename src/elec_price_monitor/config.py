@@ -39,15 +39,16 @@ MSG_LEN_LEN = 2
 BASE_HDR_FORMAT = ">BHB"  # 4 bytes uint8_t, uint16_t, uint8_t
 BASE_HDR_SIZE = struct.calcsize(BASE_HDR_FORMAT)
 
-MSG_BATT_OFFSET = 4  #data returned from the pico
+MSG_BATT_OFFSET = BASE_HDR_SIZE  #data returned from the pico
 MSG_BATT_LEN = 1
 BATT_STATUS_FORMAT = "B"  # 1 byte:
 # BATT_STATUS_SIZE = struct.calcsize(BATT_STATUS_FORMAT)
 
-MSG_TIME_SYNC_OFFSET = 4
-MSG_TIME_SYNC_LEN = 0 #if pico sends this, then there is no data
-MSG_REQ_IMG_OFFSET = 4
-MSG_REQ_IMG_LEN = 0
+MSG_TIME_SYNC_OFFSET = BASE_HDR_SIZE
+MSG_TIME_SYNC_LEN = BASE_HDR_SIZE #if pico sends this, then there is no data
+MSG_REQ_IMG_OFFSET = BASE_HDR_SIZE
+MSG_REQ_IMG_LEN = BASE_HDR_SIZE
+MSG_SLEEP_DUR_LEN = BASE_HDR_SIZE
 
 MSG_TYPE_BATT_STATUS = 1 	#pico sends, contains battery status
 MSG_TYPE_TIME_SYNC = 2    	#if pico sends, contains no data, python replies with current time
