@@ -18,7 +18,7 @@ PY_PORT = 6666  #udp port for the server running at python
 UC_PORT = 6667  #udp port for the server running at uC
 UC_IP = "127.0.0.1"
 CHUNK_SIZE = 1400 #1400 bytes in one udp packet, image size of one channel is uncompressed 38K n 2K compressed.
-MAX_SEQ_NUM = 5
+MAX_SEQ_NUM = 4
 """
 base header, 
 typedef struct Message __attribute__((packed)){
