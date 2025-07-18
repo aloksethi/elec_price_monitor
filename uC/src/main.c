@@ -18,8 +18,8 @@ void epaper_task(void *params);
 
 void create_rest_tasks(void)
 {
-    xTaskCreate(udp_task, "UDP_Task", STACK_SIZE_UDP_TASK, NULL, PRIO_UDP_TASK, NULL);
-    xTaskCreate(epaper_task, "ePaper_Task", STACK_SIZE_EPAPER_TASK, NULL, PRIO_EPAPER_TASK, NULL);
+    xTaskCreate(udp_task, "UDP_Task", STACK_SIZE_UDP_TASK, NULL, PRIO_UDP_TASK, &g_th_udp);
+    xTaskCreate(epaper_task, "ePaper_Task", STACK_SIZE_EPAPER_TASK, NULL, PRIO_EPAPER_TASK, &g_th_epaper);
 
     return;	
 }
@@ -57,6 +57,7 @@ void cy43_task(__unused void *params)
     static uint8_t onetime = 1;
     bool on = false;
     int ret;
+    EventBits_t uxReturn;
     while (true)
     {
         if (cyw43_arch_init()) {
@@ -107,22 +108,32 @@ void cy43_task(__unused void *params)
 
 
         //    create_rest_tasks();
-        while(g_do_not_sleep)
+        // while(g_do_not_sleep)
         {
             vTaskDelay(100);
         }
         printf("time to sleep.\n");
 
 
-        cyw43_arch_deinit(); //deinit the wifi to save power
-        printf("deinited the Wi-Fi.\n");
-        //print_task_details();
-        printf("calling dormant sleep now\n");
-        g_do_not_sleep = 1;
-        vTaskDelay(pdMS_TO_TICKS(10000));
-        //sleep_fxn();
-        //        printf("delete the task.\n");
-        //        vTaskDelete(cyw43_task);
+        uxReturn = xEventGroupSync(
+                g_sleep_eg,
+                SLEEP_EG_CY43_DONE_BIT, //set this
+                ALL_SYNC_BITS, // Wait for all
+                portMAX_DELAY);
+
+        if (( uxReturn & ALL_SYNC_BITS ) == ALL_SYNC_BITS) 
+        {
+            printf("CYW43: All tasks done. Going to sleep...\n");
+            cyw43_arch_deinit(); //deinit the wifi to save power
+                                 //print_task_details();
+                                 //        g_do_not_sleep = 1;
+            vTaskDelay(pdMS_TO_TICKS(10000));
+            sleep_fxn();
+        }
+        else
+        {
+            printf("WTF: what do i do now:?\n");
+        }
     }
 }
 
@@ -163,13 +174,28 @@ int main( void )
         return -1;
     }
 
-    g_udp_epaper_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
+    g_sleep_eg = xEventGroupCreate();
+    if( g_sleep_eg == NULL )
+    {
+        printf("failed to create event group for sleeping\n");
+        return -1;
+    }
+#if 0
+
+    g_udp_epaper_sem = xSemaphoreCreateBinary();
+    if (g_udp_epaper_sem == NULL) 
+    {
+        printf("failed to create bin sem\n");
+        return -1;
+    }
+    g_udp_epaper_queue = xQueueCreate(MAX_UDP_EPAPER_QUEUE, sizeof(uint32_t));
     if (g_udp_epaper_queue == NULL)
     {
         printf("failed to create udp-epaper queue\n");
         return;
     }
-    xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, NULL);
+#endif        
+    xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, &g_th_cyw43);
 
 
     vTaskStartScheduler();

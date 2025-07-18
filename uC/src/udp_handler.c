@@ -142,7 +142,7 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
   
 //#define MAX_DECOMPRESSED_PAYLOAD_SIZE 4096
 //static uint8_t decompressed_output_buffer[MAX_DECOMPRESSED_PAYLOAD_SIZE];
-static int8_t deinflate_payload(uint8_t rx_msg_idx)
+static int8_t deinflate_payload(uint8_t rx_msg_idx, uint8_t * p_dst)
 {
 	size_t in_buf_size = MAX_MSG_SIZE;//rx_msg.len;
 	size_t out_buf_size = DISP_BUFF_SIZE; 
@@ -160,8 +160,8 @@ static int8_t deinflate_payload(uint8_t rx_msg_idx)
 			&decomp,                   // Static decompressor state
 			(const mz_uint8*)p_src_buf, // Input buffer (contiguous)
 			&in_buf_size,              // Input size (will be updated by tinfl)
-			disp_buf, // Static output buffer
-			disp_buf, // Static output buffer
+			p_dst, // Static output buffer
+			p_dst, // Static output buffer
 			&out_buf_size,             // Output buffer capacity (will be updated by tinfl)
 			inflate_flags
 			);
@@ -368,7 +368,7 @@ void udp_task(void *params)
                         continue;
                     }
                     int8_t ret_val;
-                    ret_val = deinflate_payload(qmsg.idx);
+                    ret_val = deinflate_payload(qmsg.idx, rimg_buf);
                     if (ret_val == 0)
                         break;
                 }
@@ -389,17 +389,20 @@ void udp_task(void *params)
                         continue;
                     }
                     int8_t ret_val;
-                    ret_val = deinflate_payload(qmsg.idx);
+                    ret_val = deinflate_payload(qmsg.idx, bimg_buf);
                     if (ret_val == 0)
                         break;
                 }
                 else
                     continue;
             }
-            // tell epaer to display black data xQueueSend(epaper_queue, &display_cmd, portMAX_DELAY);
+            // tell epaer to display data 
+            xTaskNotifyGive( g_th_epaper );  
+
             // have to sleep now, will send a message
             send_battery_level();
-            g_do_not_sleep = 0;
+            xEventGroupSync( g_sleep_eg, SLEEP_EG_UDP_DONE_BIT, ALL_SYNC_BITS, portMAX_DELAY );
+            //g_do_not_sleep = 0;
 #if 0
             // Wait indefinitely for either the UDP_DATA_RECEIVED_BIT or UDP_TIMER_FIRED_BIT to be set.
             // pdTRUE: Clear the bits in the event group after reading them.

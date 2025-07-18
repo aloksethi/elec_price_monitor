@@ -5,6 +5,7 @@ add_executable(${PROJECT_NAME}
 	udp_handler.c
 	miniz.c
     globals.c
+    epaper_driver.c
 )
 
 # linker options
@@ -28,6 +29,7 @@ target_link_libraries(${PROJECT_NAME}
         hardware_gpio
         hardware_sleep
         hardware_adc
+        hardware_spi
         )
 pico_add_extra_outputs(${PROJECT_NAME})
 # Enable usb output, disable uart output

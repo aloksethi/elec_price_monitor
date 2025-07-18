@@ -15,12 +15,14 @@
 #define PRIO_CY43_TASK			(tskIDLE_PRIORITY + 2UL)
 //#define PRIO_BLINK_TASK			(tskIDLE_PRIORITY + 1UL)
 
+
+
 // defines from config.py
 #define UC_PORT		            6667
 #define PY_PORT		            6666
 // should have used the ip reassembly instead of chunking
 #define CHUNK_SIZE	            1400
-#define MAX_SEQ_NUM	            5
+#define MAX_SEQ_NUM	            4
 #define DISP_BUFF_SIZE	        (648*480/8) /*used for allocating memory for decompression buffer*/
 #define MAX_MSG_SIZE            (CHUNK_SIZE * MAX_SEQ_NUM) /*for allocating max size for udp reassembly*/
 #define MAX_DATA_BUFS	        2   /*number of reassemlbed buffers for udp processing. equal to the udp queue length*/
