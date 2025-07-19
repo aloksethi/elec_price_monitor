@@ -20,7 +20,7 @@ FONT_SIZE_NORM = 20
 ROW_COUNT = 24
 
 logger = Log.get_logger(__name__)
-Log().change_log_level(__name__, Log.INFO)
+Log().change_log_level(__name__, Log.DEBUG)
 
 def draw_battery(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, font: ImageFont.ImageFont):
     # Configs
@@ -197,6 +197,7 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
     while not stop_event.is_set():
         try:
             now = datetime.now()
+            logger.debug(f"starting renderer after sleep.")
             try:
                 while not elec_data_queue.empty(): # empty the queue
                     data = elec_data_queue.get_nowait()
