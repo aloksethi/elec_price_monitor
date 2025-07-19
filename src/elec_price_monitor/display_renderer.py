@@ -11,7 +11,7 @@ from .log import Log
 # no way render_iamge will work correctly if these parameters change, so no point in putting them in config
 WIDTH, HEIGHT = 648, 480
 BAT_BODY_WIDTH = 65
-BAT_BODY_HEIGHT = 25
+BAT_BODY_HEIGHT = 20
 BAT_STUB_WIDTH = 6
 BAT_STUB_HEIGHT = 10
 # ROTATE_DEGREES = -90
@@ -38,7 +38,7 @@ def draw_battery(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, font: Im
     draw.rectangle([stub_x0, stub_y0, stub_x1, stub_y1], fill=(0, 0, 0))
 
     # Battery level text inside body
-    percent_text = f"{level}%"
+    percent_text = f"{level}"
     bbox = draw.textbbox((0, 0), percent_text, font=font)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]
@@ -66,9 +66,9 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
     draw = ImageDraw.Draw(image)
 
     font_header = get_font('DejaVuSans-Bold', 20)#"DejaVuSans-Bold.ttf", FONT_SIZE_HEADER)
-    font_row = get_font('DejaVuSansMono', 20)#"DejaVuSans.ttf", FONT_SIZE_NORM)
-    font_row_bold = get_font('DejaVuSansMono-Bold', 20)#"DejaVuSans.ttf", FONT_SIZE_NORM)
-    font_batt = get_font('DejaVuSans', 20)
+    #font_row = get_font('DejaVuSansMono', 22)#"DejaVuSans.ttf", FONT_SIZE_NORM)
+    font_row_bold = get_font('DejaVuSansMono-Bold', 22)#"DejaVuSans.ttf", FONT_SIZE_NORM)
+    font_batt = get_font('DejaVuSansMono-Bold', 22)
     # except IOError:
     #     raise
     #     font_header = ImageFont.load_default()
@@ -80,21 +80,21 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
 
     # print(f'{hdr_str:^{324-len(hdr_str)}}')
     # draw.text((0, 10), f'{hdr_str}', font=font_header, fill=(0, 0, 0))
-    hdr_y = 10;
+    hdr_y = 0;#10
     bbox = draw.textbbox((0, 0), hdr_str, font=font_header)
     text_width = bbox[2] - bbox[0]
     x_pos = (WIDTH - text_width) // 2
     draw.text((x_pos, hdr_y), hdr_str, font=font_header, fill=(0, 0, 0))
     draw_battery(draw, x=WIDTH - 80, y=hdr_y, level=device['batt'], font=font_batt)
 
-    dividr_y = hdr_y + BAT_BODY_HEIGHT + 2
+    dividr_y = hdr_y + BAT_BODY_HEIGHT + 0
     draw.line((0, dividr_y, WIDTH, dividr_y), width=2, fill=(0, 0, 0))
     # Rows start below header
-    start_y = dividr_y + 2
-    row_height = (HEIGHT - start_y - 5 - 2) // 24  # fit 24 rows
+    start_y = dividr_y + 0
+    row_height = (HEIGHT - start_y - 4*2) // 24  # fit 24 rows
 
     for i in range(24):
-        y = start_y + i * row_height
+        y = start_y + i * (row_height + 1)
 
         hour = today_data[i]['hour']
         # print(f'{hour = }, {now.hour = }')
@@ -102,7 +102,7 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
             font_to_use = font_row_bold
             txt_col = (255,0,0)
         else:
-            font_to_use = font_row
+            font_to_use = font_row_bold
             txt_col = (0, 0, 0)
 
 
@@ -110,13 +110,13 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
         price_tmrw = tmrw_data[i]['price']
 
         draw.text((10, y), f"{hour:>02}:00", font=font_to_use, fill=txt_col)
-        draw.text((100, y), f"{price_today:10.01f}", font=font_to_use, fill=txt_col)
-        draw.text((220, y), f"{price_tmrw:10.01f}", font=font_row, fill=(0, 0, 0))
+        draw.text((80, y), f"{price_today:10.01f}", font=font_to_use, fill=txt_col)
+        draw.text((200, y), f"{price_tmrw:10.01f}", font=font_row_bold, fill=(0, 0, 0))
 
-        draw.line((5, y + 2 + row_height, 340, y + 2 + row_height), width=1, fill=(0,0,0))
+    #    draw.line((5, y + 2 + row_height, 340, y + 2 + row_height), width=1, fill=(0,0,0))
 
-    draw.line((5, start_y, 5, y+row_height+1), width=1, fill=(0, 0, 0))
-    draw.line((340, start_y, 340, y+row_height+1), width=1, fill=(0, 0, 0))
+    #draw.line((5, start_y, 5, y+row_height+1), width=1, fill=(0, 0, 0))
+    #draw.line((340, start_y, 340, y+row_height+1), width=1, fill=(0, 0, 0))
 
     return image
 
