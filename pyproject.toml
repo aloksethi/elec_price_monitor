@@ -8,7 +8,7 @@ exclude = ["venv", "logs", "test_data", "tests"]
 
 [project]
 name = "elec_price_monitor"
-version = "0.1.2"
+version = "1.0.0"
 description = "Monitor electricity prices and communicate with the uC"
 authors = [
   {name = "Your Name", email = "you@example.com" },
