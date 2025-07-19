@@ -32,7 +32,9 @@ void epaper_task(void *params)
         EPD_5IN83B_V2_Clear();
         
         DEV_Delay_ms(500);
-        EPD_5IN83B_V2_Display(bimg_buf, rimg_buf);
+        //EPD_5IN83B_V2_Display(bimg_buf, rimg_buf);
+
+        EPD_5IN83B_V2_Display(rimg_buf, bimg_buf);
         DEV_Delay_ms(2000);
         EPD_5IN83B_V2_Sleep();
 
