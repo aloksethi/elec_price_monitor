@@ -114,7 +114,7 @@ def send_chunked_data(data, msg_type, send_sock:socket.socket, uC_addr:tuple[str
     if (offset < total_len):
         logger.error(f"Sent {offset = } but packet length {total_len = }, {seq_num = }")
     else:
-        logger.debug(f"Sent {offset = } in {seq_num =} chunks")
+        logger.info(f"Sent {offset = } in {seq_num =} chunks")
 '''
 def send_img_data(latest_red_buf, latest_blk_buf, send_sock:socket.socket, uC_addr:tuple[str, int]):
     # payload = struct.pack('BB', config.MSG_TYPE_RIMG_DATA, 1 + len(latest_red_buf)) + struct.pack('II', len(latest_red_buf), len(latest_blk_buf))
