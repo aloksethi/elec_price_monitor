@@ -83,5 +83,8 @@ typedef struct
 #else
 #define UC_DEBUG(message)    
 #endif
+#define UC_ERROR(message)    do {\
+                                printf message;\
+                                } while(0)
 
 #endif

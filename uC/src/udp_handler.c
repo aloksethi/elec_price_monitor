@@ -41,7 +41,7 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 
 	if (!p) return;
 	if (p->len < sizeof(udp_msg_t)) {
-		printf("Received too small pbuf\n");
+		UC_ERROR(("Received too small pbuf\n"));
 		pbuf_free(p);
 		return;
 	}
@@ -61,13 +61,13 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 		// If this is the first chunk, reset the reassembly buffer
 		if (msg_p->seq_num == 0) {
 			reassembly_len = 0;
-			printf("Receiving new message, idx:%d\n", g_empty_idx);
+			UC_DEBUG(("Receiving new message, idx:%d\n", g_empty_idx));
 		}
 
 
 		// Ensure we don't overflow the reassembly buffer
 		if ((reassembly_len + payload_len) > MAX_MSG_SIZE) {
-			printf("Error: Message too large for reassembly buffer. Discarding.\n");
+			UC_ERROR(("Error: Message too large for reassembly buffer. Discarding.\n"));
 			reassembly_len = 0;
 			expected_seq_num = 0;
 			pbuf_free(p);
@@ -76,7 +76,7 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 
 		p_contiguous_data = (uint8_t *)malloc(chunk_len);
 		if (p_contiguous_data == NULL) {
-			printf("ERROR: Failed to allocate memory for contiguous UDP data. Dropping packet.\n");
+			UC_ERROR(("ERROR: Failed to allocate memory for contiguous UDP data. Dropping packet.\n"));
 			pbuf_free(p); // Free the original pbuf chain
 			return;
 		}
@@ -85,7 +85,7 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 		//tmp = pbuf_copy_partial(p, &reassembly_buff[g_empty_idx][0] + reassembly_len, chunk_len, 0);
 		tmp = pbuf_copy_partial(p, p_contiguous_data, chunk_len, 0);
 		if (tmp != chunk_len)
-			printf("pbuf_copy didnt compelte\n");
+			UC_ERROR(("pbuf_copy didnt compelte\n"));
 		// contiguous_data will contain the udp_msg_t, so copy after it only
 		p_src = p_contiguous_data + offsetof(udp_msg_t, data);
 		p_dst = reassembly_buff[g_empty_idx] + reassembly_len;
@@ -100,7 +100,7 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 		{
             udp_qmsg_t qmsg;
 			BaseType_t xHigherPriorityTaskWoken;
-			printf("Full message reassembled. Total payload length: %d\n", reassembly_len);
+			UC_DEBUG(("Full message reassembled. Total payload length: %d\n", reassembly_len));
             qmsg.idx = g_empty_idx;
             qmsg.msg_type = msg_p->msg_type;
             qmsg.msg_len = reassembly_len;
@@ -116,19 +116,19 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 			else 
 			{
 				// Queue was full, so we must free the pbuf here to prevent memory leaks.
-				printf("UDP RX Queue full, dropping packet from %s:%d.\n", ipaddr_ntoa(addr), port);
+				UC_ERROR(("UDP RX Queue full, dropping packet from %s:%d.\n", ipaddr_ntoa(addr), port));
 			}
 		} 
 		else 
 		{
 			// We are expecting more chunks
-			printf("expecting more chunks, reassmebly_len=%d, msg_len=%d\n",reassembly_len, expected_msg_len);
+			UC_DEBUG(("expecting more chunks, reassmebly_len=%d, msg_len=%d\n",reassembly_len, expected_msg_len));
 			expected_seq_num++;
 		}
 
 	} else {
 		// Handle out-of-order or lost packet
-		printf("Unexpected sequence number. Expected: %d, Got: %d. Discarding message.\n", expected_seq_num, msg_p->seq_num);
+		UC_ERROR(("Unexpected sequence number. Expected: %d, Got: %d. Discarding message.\n", expected_seq_num, msg_p->seq_num));
 		reassembly_len = 0;
 		expected_seq_num = 0;
 	}
@@ -379,7 +379,7 @@ void udp_task(void *params)
     g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
     if (g_udp_rx_queue == NULL)
     {
-        printf("failed to create udp rx queue\n");
+        UC_ERROR(("failed to create udp rx queue\n"));
         return;
     }
     udp_bind(g_pcb, IP_ADDR_ANY, UC_PORT);
@@ -415,7 +415,7 @@ void udp_task(void *params)
                     UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if (qmsg.msg_type != MSG_TYPE_RIMG_DATA)
                     {
-                        UC_DEBUG(("wrong message type received?expecteing red data\n"));
+                        UC_ERROR(("wrong message type received?expecteing red data\n"));
                         continue;
                     }
                     int8_t ret_val;
@@ -425,7 +425,7 @@ void udp_task(void *params)
                 }
                 else
                 {
-                    UC_DEBUG(("failure in retreiving data reg. req_rimg, trying again\n"));
+                    UC_ERROR(("failure in retreiving data reg. req_rimg, trying again\n"));
                     continue;
                 }
             }
@@ -439,7 +439,7 @@ void udp_task(void *params)
                     UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if (qmsg.msg_type != MSG_TYPE_BIMG_DATA)
                     {
-                        UC_DEBUG(("wrong message type received?expecteing black data\n"));
+                        UC_ERROR(("wrong message type received?expecteing black data\n"));
                         continue;
                     }
                     int8_t ret_val;
@@ -449,7 +449,7 @@ void udp_task(void *params)
                 }
                 else
                 {
-                    UC_DEBUG(("failure in retreiving data reg. req_bimg, trying again\n"));
+                    UC_ERROR(("failure in retreiving data reg. req_bimg, trying again\n"));
                     continue;
                 }
             }
@@ -468,7 +468,7 @@ void udp_task(void *params)
                     UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if ((qmsg.msg_type != MSG_TYPE_TIME_SYNC) || (qmsg.msg_len < (sizeof(udp_timesync_t))))
                     {
-                        UC_DEBUG(("something wrong with message type:%d, len:%d\n", qmsg.msg_type, qmsg.msg_len));
+                        UC_ERROR(("something wrong with message type:%d, len:%d\n", qmsg.msg_type, qmsg.msg_len));
                         continue;
                     }
                     p_src = (udp_timesync_t *)(&reassembly_buff[qmsg.idx][0]); 
@@ -477,7 +477,7 @@ void udp_task(void *params)
                 }
                 else
                 {
-                    UC_DEBUG(("failure in retreiving data reg. req_time, trying again\n"));
+                    UC_ERROR(("failure in retreiving data reg. req_time, trying again\n"));
                     continue;
                 }
             }
