@@ -7,7 +7,6 @@
 
 #define NO_SYS			    0
 #define LWIP_SOCKET                 1
-
 #if PICO_CYW43_ARCH_POLL
 #define MEM_LIBC_MALLOC             1
 #else
@@ -48,11 +47,12 @@
 #define DHCP_DOES_ARP_CHECK         0
 #define LWIP_DHCP_DOES_ACD_CHECK    0
 
-#ifndef NDEBUG
-#define LWIP_DEBUG                  1
+//#ifndef NDEBUG
+#define LWIP_DEBUG                  0
 #define LWIP_STATS                  1
 #define LWIP_STATS_DISPLAY          1
-#endif
+#define LWIP_NOASSERT               1
+//#endif
 
 #define ETHARP_DEBUG                LWIP_DBG_OFF
 #define NETIF_DEBUG                 LWIP_DBG_OFF
