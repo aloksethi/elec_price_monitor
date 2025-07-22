@@ -15,6 +15,7 @@
 #include "config.h"
 #include "miniz.h"
 #include "globals.h"
+#include "rtc.h"
 
 #define UDP_DATA_RECEIVED_BIT (1UL << 0UL) // Bit 0: Set when UDP data arrives
 #define UDP_TIMER_FIRED_BIT   (1UL << 1UL) // Bit 1: Set when the periodic timer fires
@@ -363,6 +364,7 @@ void udp_task(void *params)
         return;
     }
 #endif		
+    setup_ext_rtc();
 
     while (1) {
         EventBits_t uxBits;
@@ -428,6 +430,37 @@ void udp_task(void *params)
             xTaskNotifyGive( g_th_epaper );  
 
             send_battery_level();
+            while (1)
+            {
+                //Request time data
+                req_time_data();
+                udp_timesync_t *p_src;
+                uint16_t year;
+                datetime_t t;
+
+                if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
+                {
+                    printf("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type);
+                    if ((qmsg.msg_type != MSG_TYPE_TIME_SYNC) || (qmsg.msg_len < (sizeof(udp_timesync_t))))
+                    {
+                        printf("something wrong with message type:%d, len:%d\n", qmsg.msg_type, qmsg.msg_len);
+                        continue;
+                    }
+                    p_src = (udp_timesync_t *)(&reassembly_buff[qmsg.idx][0]); 
+                    year = ntohs(p_src->year);
+                    printf("yr:%d, mon:%d, date:%d, hr:%d, min:%d, sec:%d\n", year, p_src->mon, p_src->date, p_src->hr, p_src->min, p_src->sec);
+                    read_ext_rtc(&t);
+
+                    break;
+                }
+                else
+                {
+                    printf("failure in retreiving data reg. req_time, trying again\n");
+                    continue;
+                }
+            }
+ 
+ vTaskDelay(pdMS_TO_TICKS(1000));
             xEventGroupSync( g_sleep_eg, SLEEP_EG_UDP_DONE_BIT, ALL_SYNC_BITS, portMAX_DELAY );
             //g_do_not_sleep = 0;
 #if 0
