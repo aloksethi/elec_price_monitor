@@ -11,10 +11,25 @@
 
 #include "pico/sleep.h"
 #include "globals.h"
+#include "rtc.h"
 
 void udp_task(void *params);
 void epaper_task(void *params);
 
+#include "lwip/netif.h"
+#include "lwip/ip_addr.h"
+#include "lwip/init.h"
+
+void print_ip_address() {
+    struct netif *netif = netif_default;  // or netif_list
+
+    //if (netif && !ip4_addr_isany_val(netif->ip_addr.u_addr.ip4)) {
+    if (netif && !ip4_addr_isany_val(netif->ip_addr)) {
+        printf("IP Address: %s\n", ip4addr_ntoa(&netif->ip_addr.addr));
+    } else {
+        printf("IP Address not assigned yet.\n");
+    }
+}
 
 void create_rest_tasks(void)
 {
@@ -99,6 +114,7 @@ void cy43_task(__unused void *params)
         if (ret == CYW43_LINK_UP)
         {
             //vTaskDelay(pdMS_TO_TICKS(5000));
+            print_ip_address();
             xSemaphoreGive(g_wifi_ready_sem);
 
         }
