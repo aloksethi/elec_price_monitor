@@ -24,5 +24,6 @@
 void write_ext_rtc(datetime_t *t);
 void read_ext_rtc(datetime_t *t);
 void setup_ext_rtc();
+void dbg_print_i2c();
 
 #endif

@@ -3,14 +3,14 @@
 #include "rtc.h"
 #include "hardware/i2c.h"
 #include "hardware/gpio.h"
-
+#include "config.h"
 
 static uint8_t conv_val_to_bcd(uint8_t val)
 {
 	uint8_t bcd = 0;
 
 	if (val > 99)
-		printf("error");
+		UC_ERROR(("val incorrect, should be <99\n"));
 
 	bcd = ((uint8_t)(val / 10))<< 4;
 	bcd |= ((uint8_t)(val % 10));
@@ -58,7 +58,7 @@ void write_ext_rtc(datetime_t *t)
     buf[7] = conv_val_to_bcd(t->year - 2000);
 	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &buf[0], 8, false);  
     if (ret == PICO_ERROR_GENERIC)
-		printf("failed to wirite ext rtc\n");
+		UC_ERROR(("failed to wirite ext rtc\n"));
 
 }
 
@@ -75,15 +75,15 @@ void read_ext_rtc(datetime_t *t)
 
     ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &reg, 1, true);  // true to keep master control of bus
     if (ret == PICO_ERROR_GENERIC)
-		printf("failed to wirite ext rtc\n");
+		UC_ERROR(("failed to wirite ext rtc\n"));
 	
 	ret = i2c_read_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &buf[0], 7, false);  // false - finished with bus
 	if (ret == PICO_ERROR_GENERIC)
-		printf("failed to read ext rtc\n");
+		UC_ERROR(("failed to read ext rtc\n"));
 
 	// hour is in reg 0x2
 	hr = conv_bcd_to_val(buf[EXT_RTC_HR_REG]);
-	printf("bcd Time:%02d:%02x:%02x  Day:%1d Date:%02x-%02x-20%02x\n",hr, buf[1], buf[0] , buf[3], buf[4], buf[5], buf[6]);
+	//printf("bcd Time:%02d:%02x:%02x  Day:%1d Date:%02x-%02x-20%02x\n",hr, buf[1], buf[0] , buf[3], buf[4], buf[5], buf[6]);
 
 	t->year = 2000 + conv_bcd_to_val(buf[EXT_RTC_YR_REG]);  //device returns only last two digits of the year. not handling the rolloever to next centuary
 	t->month = conv_bcd_to_val(buf[EXT_RTC_MON_REG]);
@@ -93,10 +93,11 @@ void read_ext_rtc(datetime_t *t)
 	t->min = conv_bcd_to_val(buf[EXT_RTC_MIN_REG]);
 	t->sec = conv_bcd_to_val(buf[EXT_RTC_SEC_REG]);
 
-	printf("Time:%02d:%02d:%02d  Day:%1d Date:%02d-%02d-%02d\n",t->hour, t->min, t->sec , t->dotw, t->day, t->month, t->year);
+	//printf("Time:%02d:%02d:%02d  Day:%1d Date:%02d-%02d-%02d\n",t->hour, t->min, t->sec , t->dotw, t->day, t->month, t->year);
 	return;
 }
 
+// Following functions are taken from rpi pico i2c documentation
 // I2C reserves some addresses for special purposes. We exclude these from the scan.
 // These are any addresses of the form 000 0xxx or 111 1xxx
 static bool reserved_addr(uint8_t addr) {
@@ -107,7 +108,7 @@ void dbg_print_i2c()
 
     for (int addr = 0; addr < (1 << 7); ++addr) {
         if (addr % 16 == 0) {
-            printf("%02x ", addr);
+            UC_DEBUG(("%02x ", addr));
         }
 
         // Perform a 1-byte dummy read from the probe address. If a slave
@@ -123,8 +124,8 @@ void dbg_print_i2c()
         else
             ret = i2c_read_blocking(EXT_RTC_I2C_DEV, addr, &rxdata, 1, false);
 
-        printf(ret < 0 ? "." : "@");
-        printf(addr % 16 == 15 ? "\n" : "  ");
+        UC_DEBUG((ret < 0 ? "." : "@"));
+        UC_DEBUG((addr % 16 == 15 ? "\n" : "  "));
     }
     return;
 }
