@@ -485,57 +485,6 @@ void udp_task(void *params)
             vTaskDelay(pdMS_TO_TICKS(5000));
             xEventGroupSync( g_sleep_eg, SLEEP_EG_UDP_DONE_BIT, ALL_SYNC_BITS, portMAX_DELAY );
             //g_do_not_sleep = 0;
-#if 0
-            // Wait indefinitely for either the UDP_DATA_RECEIVED_BIT or UDP_TIMER_FIRED_BIT to be set.
-            // pdTRUE: Clear the bits in the event group after reading them.
-            // pdFALSE: Wait for ANY of the specified bits, not ALL.
-            // portMAX_DELAY: Wait indefinitely until one of the bits is set.
-            uxBits = xEventGroupWaitBits(g_udp_evnt_grp, UDP_DATA_RECEIVED_BIT | UDP_TIMER_FIRED_BIT,
-                    pdTRUE,  // Clear bits on exit
-                    pdFALSE, // Wait for any bit
-                    portMAX_DELAY // Wait indefinitely
-                    );
-
-            if ((uxBits & UDP_DATA_RECEIVED_BIT) != 0) 
-            {
-                // Retrieve all available messages from the queue.
-                // Loop until the queue is empty (xQueueReceive returns pdFAIL).
-                while (xQueueReceive(g_udp_rx_queue, &qmsg, 0) == pdPASS) 
-                { 
-                    printf("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type);
-
-                    switch (qmsg.msg_type)
-                    {
-                        case MSG_TYPE_RIMG_DATA:
-                            {
-                                int8_t ret_val;
-                                float v;
-                                ret_val = deinflate_payload(qmsg.idx);
-
-
-                                g_do_not_sleep = 0;
-                                break;
-                            }
-                        case MSG_TYPE_BIMG_DATA:
-                            {
-                                deinflate_payload(qmsg.idx);
-                                g_do_not_sleep = 0;
-
-                                break;
-                            }
-                        case MSG_TYPE_TIME_SYNC:
-                            {
-
-                            }
-                        default:
-                            printf("unhandled message type received:%d\n", qmsg.msg_type);
-                    }
-
-
-                    //	vTaskDelay(pdMS_TO_TICKS(1000)); // Nothing to do, LWIP runs in background
-                }
-            }
-#endif
         }
     }
 }
