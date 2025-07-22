@@ -169,16 +169,16 @@ static int8_t deinflate_payload(uint8_t rx_msg_idx, uint8_t * p_dst)
 
 	if (status == TINFL_STATUS_DONE) {
 		ret_val = 0;
-		printf("INFO: Successfully decompressed to %d bytes.\n",
-				(int)out_buf_size); // out_buf_size now holds actual decompressed length
+		UC_DEBUG(("INFO: Successfully decompressed to %d bytes.\n",
+				(int)out_buf_size)); // out_buf_size now holds actual decompressed length
 
 	} else if (status == TINFL_STATUS_HAS_MORE_OUTPUT) {
-		printf("ERROR: Decompression failed: Output buffer too small \n");
+		UC_ERROR(("ERROR: Decompression failed: Output buffer too small \n"));
 		ret_val = -1;
 		// This indicates MAX_DECOMPRESSED_PAYLOAD_SIZE needs to be increased.
 	} else {
-		printf("ERROR: Decompression failed with status %d \n",
-				status);
+		UC_ERROR(("ERROR: Decompression failed with status %d \n",
+				status));
 		ret_val = -2;
 	}
 	return ret_val;
@@ -248,12 +248,12 @@ void send_udp_packet(uint8_t * payload, uint8_t payload_len)
         pbuf_free(p);
 		if (err)
 		{
-			printf("udp_sendto failed: %d\n", err);
+			UC_ERROR(("udp_sendto failed: %d\n", err));
 		}
     }
 	else
 	{
-		printf("Error:failed to allocate udp_send data\n");
+		UC_ERROR(("Error:failed to allocate udp_send data\n"));
 	}
 
     return;
@@ -262,7 +262,7 @@ void send_battery_level()
 {
         uint8_t batt_level;
 
-		printf("entered sending battery level\n");
+		UC_DEBUG(("entered sending battery level\n"));
         read_batt_charge(&batt_level);
 
 	udp_msg_t *p_data;
@@ -280,11 +280,11 @@ void send_battery_level()
 	}
 	else
 	{
-		printf("Error:failed to allocate data for sending battery level\n");
+		UC_ERROR(("Error:failed to allocate data for sending battery level\n"));
 	}
 	free(p_data);
 
-		printf("exited sending battery level\n");
+		UC_DEBUG(("exited sending battery level\n"));
     return;
 }
 void req_img_data(uint32_t type)
@@ -303,7 +303,7 @@ void req_img_data(uint32_t type)
 	}
 	else
 	{
-		printf("Error:failed to allocate data for sending image data\n");
+		UC_ERROR(("Error:failed to allocate data for sending image data\n"));
 	}
 	free(p_data);
     return;
@@ -332,7 +332,7 @@ void req_time_data()
 	}
 	else
 	{
-		printf("Error:failed to allocate data for sending timesync msg\n");
+		UC_ERROR(("Error:failed to allocate data for sending timesync msg\n"));
 	}
 	free(p_data);
     return;
