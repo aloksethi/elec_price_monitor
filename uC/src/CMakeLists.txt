@@ -6,6 +6,7 @@ add_executable(${PROJECT_NAME}
 	miniz.c
     globals.c
     epaper_driver.c
+    rtc.c
 )
 
 # linker options
@@ -30,6 +31,7 @@ target_link_libraries(${PROJECT_NAME}
         hardware_sleep
         hardware_adc
         hardware_spi
+        hardware_i2c
         )
 pico_add_extra_outputs(${PROJECT_NAME})
 # Enable usb output, disable uart output
