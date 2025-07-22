@@ -338,6 +338,33 @@ void req_time_data()
     return;
 }
 
+void update_rtc(udp_timesync_t *p)
+{
+    uint16_t year;
+    datetime_t t;
+
+    year = ntohs(p->year);
+
+        read_ext_rtc(&t);
+
+    if ((t.year != year) || (t.month != p->mon) || (t.day != p->date) || (t.hour != p->hr) || (t.min != p->min) || (t.sec != p->sec))
+    {
+        UC_DEBUG(("from server: yr:%d, mon:%d, date:%d, hr:%d, min:%d, sec:%d\n", year, p->mon, p->date, p->hr, p->min, p->sec));
+        UC_DEBUG(("from rtc: yr:%d, mon:%d, date:%d, hr:%d, min:%d, sec:%d\n", t.year, t.month, t.day, t.hour, t.min, t.sec));
+        t.year = year;
+        t.month = p->mon;
+        t.day = p->date; 
+        t.hour = p->hr;
+        t.min = p->min;
+        t.sec = p->sec;
+        write_ext_rtc(&t);
+    }
+    else
+    UC_DEBUG(("RTC in sync\n"));
+
+
+
+}
 //extern volatile uint8_t g_do_not_sleep;
 void udp_task(void *params) 
 {
@@ -370,11 +397,11 @@ void udp_task(void *params)
         EventBits_t uxBits;
         udp_qmsg_t qmsg;
 
-			printf("waiting the semaphre\n");
+			UC_DEBUG(("waiting the semaphre\n"));
 
         if (xSemaphoreTake(g_wifi_ready_sem, portMAX_DELAY) == pdTRUE)
         {
-			printf("got the semaphre\n");
+			UC_DEBUG(("got the semaphre\n"));
             // 1) Send battery level
             send_battery_level();
 
@@ -385,10 +412,10 @@ void udp_task(void *params)
 
                 if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
                 {
-                    printf("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type);
+                    UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if (qmsg.msg_type != MSG_TYPE_RIMG_DATA)
                     {
-                        printf("wrong message type received?expecteing red data\n");
+                        UC_DEBUG(("wrong message type received?expecteing red data\n"));
                         continue;
                     }
                     int8_t ret_val;
@@ -398,7 +425,7 @@ void udp_task(void *params)
                 }
                 else
                 {
-                    printf("failure in retreiving data reg. req_rimg, trying again\n");
+                    UC_DEBUG(("failure in retreiving data reg. req_rimg, trying again\n"));
                     continue;
                 }
             }
@@ -409,10 +436,10 @@ void udp_task(void *params)
                 req_bimg_data();
                 if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
                 {
-                    printf("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type);
+                    UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if (qmsg.msg_type != MSG_TYPE_BIMG_DATA)
                     {
-                        printf("wrong message type received?expecteing black data\n");
+                        UC_DEBUG(("wrong message type received?expecteing black data\n"));
                         continue;
                     }
                     int8_t ret_val;
@@ -422,7 +449,7 @@ void udp_task(void *params)
                 }
                 else
                 {
-                    printf("failure in retreiving data reg. req_bimg, trying again\n");
+                    UC_DEBUG(("failure in retreiving data reg. req_bimg, trying again\n"));
                     continue;
                 }
             }
@@ -435,32 +462,27 @@ void udp_task(void *params)
                 //Request time data
                 req_time_data();
                 udp_timesync_t *p_src;
-                uint16_t year;
-                datetime_t t;
 
                 if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
                 {
-                    printf("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type);
+                    UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if ((qmsg.msg_type != MSG_TYPE_TIME_SYNC) || (qmsg.msg_len < (sizeof(udp_timesync_t))))
                     {
-                        printf("something wrong with message type:%d, len:%d\n", qmsg.msg_type, qmsg.msg_len);
+                        UC_DEBUG(("something wrong with message type:%d, len:%d\n", qmsg.msg_type, qmsg.msg_len));
                         continue;
                     }
                     p_src = (udp_timesync_t *)(&reassembly_buff[qmsg.idx][0]); 
-                    year = ntohs(p_src->year);
-                    printf("yr:%d, mon:%d, date:%d, hr:%d, min:%d, sec:%d\n", year, p_src->mon, p_src->date, p_src->hr, p_src->min, p_src->sec);
-                    read_ext_rtc(&t);
-
+                    update_rtc(p_src);
                     break;
                 }
                 else
                 {
-                    printf("failure in retreiving data reg. req_time, trying again\n");
+                    UC_DEBUG(("failure in retreiving data reg. req_time, trying again\n"));
                     continue;
                 }
             }
  
- vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(5000));
             xEventGroupSync( g_sleep_eg, SLEEP_EG_UDP_DONE_BIT, ALL_SYNC_BITS, portMAX_DELAY );
             //g_do_not_sleep = 0;
 #if 0

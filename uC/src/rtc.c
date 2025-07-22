@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "pico/util/datetime.h"
 #include "rtc.h"
 #include "hardware/i2c.h"
@@ -44,13 +45,18 @@ void setup_ext_rtc()
 void write_ext_rtc(datetime_t *t)
 {
 	// lets write only the hours and mins
-	uint8_t buf[3];  // two bytes of data and one register address
+	uint8_t buf[8];  // two bytes of data and one register address
     int ret;
 
-	buf[0] = EXT_RTC_MIN_REG;
-	buf[1] = conv_val_to_bcd(t->min);
-	buf[2] = conv_val_to_bcd(t->hour);
-	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &buf[0], 3, false);  
+	buf[0] = EXT_RTC_SEC_REG;//EXT_RTC_MIN_REG;
+	buf[1] = conv_val_to_bcd(t->sec);
+    buf[2] = conv_val_to_bcd(t->min);
+	buf[3] = conv_val_to_bcd(t->hour);
+    buf[4] = conv_val_to_bcd(0);
+    buf[5] = conv_val_to_bcd(t->day);
+    buf[6] = conv_val_to_bcd(t->month);
+    buf[7] = conv_val_to_bcd(t->year - 2000);
+	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &buf[0], 8, false);  
     if (ret == PICO_ERROR_GENERIC)
 		printf("failed to wirite ext rtc\n");
 
@@ -89,4 +95,36 @@ void read_ext_rtc(datetime_t *t)
 
 	printf("Time:%02d:%02d:%02d  Day:%1d Date:%02d-%02d-%02d\n",t->hour, t->min, t->sec , t->dotw, t->day, t->month, t->year);
 	return;
+}
+
+// I2C reserves some addresses for special purposes. We exclude these from the scan.
+// These are any addresses of the form 000 0xxx or 111 1xxx
+static bool reserved_addr(uint8_t addr) {
+    return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
+}
+void dbg_print_i2c()
+{
+
+    for (int addr = 0; addr < (1 << 7); ++addr) {
+        if (addr % 16 == 0) {
+            printf("%02x ", addr);
+        }
+
+        // Perform a 1-byte dummy read from the probe address. If a slave
+        // acknowledges this address, the function returns the number of bytes
+        // transferred. If the address byte is ignored, the function returns
+        // -1.
+
+        // Skip over any reserved addresses.
+        int ret;
+        uint8_t rxdata;
+        if (reserved_addr(addr))
+            ret = PICO_ERROR_GENERIC;
+        else
+            ret = i2c_read_blocking(EXT_RTC_I2C_DEV, addr, &rxdata, 1, false);
+
+        printf(ret < 0 ? "." : "@");
+        printf(addr % 16 == 15 ? "\n" : "  ");
+    }
+    return;
 }

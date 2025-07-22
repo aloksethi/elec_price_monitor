@@ -73,4 +73,15 @@ typedef struct
 #define PICO_WAKEUP_GPIO        2
 
 #define UDP_CHUNK_TIMEOUT_MS    10000
+
+//#define UC_DEBUG_ON
+
+#ifdef UC_DEBUG_ON
+#define UC_DEBUG(message)    do {\
+                                printf message;\
+                                } while(0)
+#else
+#define UC_DEBUG(message)    
+#endif
+
 #endif
