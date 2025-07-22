@@ -257,11 +257,11 @@ void send_udp_packet(uint8_t * payload, uint8_t payload_len)
 
     return;
 }
-
 void send_battery_level()
 {
         uint8_t batt_level;
 
+		printf("entered sending battery level\n");
         read_batt_charge(&batt_level);
 
 	udp_msg_t *p_data;
@@ -283,6 +283,7 @@ void send_battery_level()
 	}
 	free(p_data);
 
+		printf("exited sending battery level\n");
     return;
 }
 void req_img_data(uint32_t type)
@@ -314,12 +315,33 @@ void req_bimg_data()
 {
 	req_img_data(MSG_TYPE_REQ_BIMG_DATA);
 }
+void req_time_data()
+{
+	udp_msg_t *p_data;
+	uint16_t payload_len = sizeof(udp_msg_t);
+	p_data = (udp_msg_t *)malloc(payload_len);
 
+	if(p_data)
+	{
+		p_data->msg_type = MSG_TYPE_TIME_SYNC;
+		p_data->msg_len = htons(payload_len);
+		p_data->seq_num = 0;
 
-extern volatile uint8_t g_do_not_sleep;
+		send_udp_packet((uint8_t *)p_data, payload_len);
+	}
+	else
+	{
+		printf("Error:failed to allocate data for sending timesync msg\n");
+	}
+	free(p_data);
+    return;
+}
+
+//extern volatile uint8_t g_do_not_sleep;
 void udp_task(void *params) 
 {
     uint8_t tmp=0;
+
     g_pcb = udp_new();
     if (!g_pcb) {
         printf("Failed to create UDP PCB\n");
@@ -373,7 +395,10 @@ void udp_task(void *params)
                         break;
                 }
                 else
+                {
+                    printf("failure in retreiving data reg. req_rimg, trying again\n");
                     continue;
+                }
             }
             // tell epaer to display red data xQueueSend(epaper_queue, &display_cmd, portMAX_DELAY);
             while (1)
@@ -394,12 +419,14 @@ void udp_task(void *params)
                         break;
                 }
                 else
+                {
+                    printf("failure in retreiving data reg. req_bimg, trying again\n");
                     continue;
+                }
             }
             // tell epaer to display data 
             xTaskNotifyGive( g_th_epaper );  
 
-            // have to sleep now, will send a message
             send_battery_level();
             xEventGroupSync( g_sleep_eg, SLEEP_EG_UDP_DONE_BIT, ALL_SYNC_BITS, portMAX_DELAY );
             //g_do_not_sleep = 0;
