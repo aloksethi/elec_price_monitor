@@ -70,7 +70,7 @@ typedef struct
 // PICO HW related
 #define PICO_FIRST_ADC_PIN      26
 #define PICO_POWER_SAMPLE_COUNT 3
-#define PICO_WAKEUP_GPIO        2
+#define PICO_WAKEUP_GPIO        18
 
 #define UDP_CHUNK_TIMEOUT_MS    10000
 
