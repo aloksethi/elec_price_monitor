@@ -25,9 +25,10 @@ void print_ip_address() {
 
     //if (netif && !ip4_addr_isany_val(netif->ip_addr.u_addr.ip4)) {
     if (netif && !ip4_addr_isany_val(netif->ip_addr)) {
-        printf("IP Address: %s\n", ip4addr_ntoa(&netif->ip_addr.addr));
+        UC_ERROR(("IP Address: %s\n", ip4addr_ntoa(&netif->ip_addr.addr)));
+                //would always like to see this print, not an error    
     } else {
-        printf("IP Address not assigned yet.\n");
+        UC_ERROR(("IP Address not assigned yet.\n"));
     }
 }
 
@@ -54,12 +55,12 @@ void print_task_details()
                 );
 
         for (UBaseType_t i = 0; i < uxArraySize; i++) {
-            printf(
+            UC_DEBUG((
                     "Task: %s, Priority: %u, State: %u\n",
                     pxTaskStatusArray[i].pcTaskName,
                     pxTaskStatusArray[i].uxCurrentPriority,
                     pxTaskStatusArray[i].eCurrentState
-                  );
+                  ));
         }
 
         vPortFree(pxTaskStatusArray);
@@ -76,7 +77,7 @@ void cy43_task(__unused void *params)
     while (true)
     {
         if (cyw43_arch_init()) {
-            printf("failed to initialise\n");
+            UC_ERROR(("failed to initialise\n"));
             vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
             //           exit(1);
@@ -84,7 +85,6 @@ void cy43_task(__unused void *params)
         }
         //cyw43_wifi_pm(&cyw43_state, CYW43_AGGRESSIVE_PM);
         cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
-        printf("arch init doen.\n");
 
         if (onetime)
         {
@@ -95,11 +95,11 @@ void cy43_task(__unused void *params)
         on = !on;
 
         cyw43_arch_enable_sta_mode();
-        printf("Connecting to Wi-Fi...\n");
+        UC_DEBUG(("Connecting to Wi-Fi...\n"));
         //if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
         if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK))
         {
-            printf("failed to connect to Wi-Fi.\n");
+            UC_ERROR(("failed to connect to Wi-Fi.\n"));
             vTaskDelay(pdMS_TO_TICKS(1000));
             cyw43_arch_deinit();
             continue;
@@ -128,7 +128,6 @@ void cy43_task(__unused void *params)
         {
             vTaskDelay(100);
         }
-        printf("time to sleep.\n");
 
 
         uxReturn = xEventGroupSync(
@@ -143,19 +142,19 @@ void cy43_task(__unused void *params)
             cyw43_arch_deinit(); //deinit the wifi to save power
                                  //print_task_details();
                                  //        g_do_not_sleep = 1;
-            vTaskDelay(pdMS_TO_TICKS(10000));
+            vTaskDelay(pdMS_TO_TICKS(200));
             sleep_fxn();
         }
         else
         {
-            printf("WTF: what do i do now:?\n");
+            UC_ERROR(("WTF: what do i do now:?\n"));
         }
     }
 }
 
 void vApplicationStackOverflowHook( TaskHandle_t xTask, char *pcTaskName ) 
 {
-    printf("Stack overflow in task: %s\n", pcTaskName);
+    UC_ERROR(("Stack overflow in task: %s\n", pcTaskName));
     for( ;; );
 }
 
@@ -186,14 +185,14 @@ int main( void )
     g_wifi_ready_sem = xSemaphoreCreateBinary();
     if (g_wifi_ready_sem == NULL) 
     {
-        printf("failed to create bin sem\n");
+        UC_ERROR(("failed to create bin sem\n"));
         return -1;
     }
 
     g_sleep_eg = xEventGroupCreate();
     if( g_sleep_eg == NULL )
     {
-        printf("failed to create event group for sleeping\n");
+        UC_ERROR(("failed to create event group for sleeping\n"));
         return -1;
     }
 #if 0
