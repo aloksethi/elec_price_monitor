@@ -104,29 +104,33 @@ void cy43_task(__unused void *params)
             cyw43_arch_deinit();
             continue;
         } 
-
-        ret = cyw43_tcpip_link_status (&cyw43_state, CYW43_ITF_STA);
-        if (ret < 0)
-            printf("error\n");
-        else
-            printf("ret is %d\n",ret);
-
-        if (ret == CYW43_LINK_UP)
+        
+        int8_t retries = 5;
+        while (retries > 0)
         {
-            //vTaskDelay(pdMS_TO_TICKS(5000));
-            print_ip_address();
-            xSemaphoreGive(g_wifi_ready_sem);
+            ret = cyw43_tcpip_link_status (&cyw43_state, CYW43_ITF_STA);
+            if (ret == CYW43_LINK_UP)
+            {
+                print_ip_address();
+                xSemaphoreGive(g_wifi_ready_sem);
+                break;
+            }
+            else
+            {
+                if (ret < 0) 
+                    UC_ERROR(("failed to get link status\n"));
+                else 
+                    UC_ERROR(("link not up:%d\n", ret));
 
+                UC_ERROR(("trying again:%d\n", retries));
+                vTaskDelay(pdMS_TO_TICKS(100));
+                retries--;
+            }
         }
-
-        printf("Connected to the Wi-Fi.\n");
-
-
-
-        //    create_rest_tasks();
-        // while(g_do_not_sleep)
+        if (retries == 0)
         {
-            vTaskDelay(100);
+            UC_ERROR(("link not up after multiple retries, reinit"));
+            continue;
         }
 
 
