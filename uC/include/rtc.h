@@ -19,11 +19,16 @@
 #define EXT_RTC_DAY_REG         (0x4)
 #define EXT_RTC_MON_REG         (0x5)
 #define EXT_RTC_YR_REG          (0x6)
-
+#define EXT_RTC_A1_SEC_REG      (0x7)
+#define EXT_RTC_A1_MIN_REG      (0x8)
+#define EXT_RTC_A1_HR_REG       (0x9)
+#define EXT_RTC_A1_DYDT_REG     (0xa)
+#define EXT_RTC_CONTROL_REG     (0xe)
 
 void write_ext_rtc(datetime_t *t);
 void read_ext_rtc(datetime_t *t);
 void setup_ext_rtc();
 void dbg_print_i2c();
+void set_alarm(datetime_t *t);
 
 #endif

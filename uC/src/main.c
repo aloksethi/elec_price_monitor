@@ -1,5 +1,7 @@
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
+#include "hardware/gpio.h"
+
 
 #include "lwip/netif.h"
 #include "lwip/ip4_addr.h"
@@ -146,8 +148,8 @@ void cy43_task(__unused void *params)
             cyw43_arch_deinit(); //deinit the wifi to save power
                                  //print_task_details();
                                  //        g_do_not_sleep = 1;
-            vTaskDelay(pdMS_TO_TICKS(200));
-            sleep_fxn();
+            vTaskDelay(pdMS_TO_TICKS(5000));
+        //    sleep_fxn();
         }
         else
         {
@@ -169,7 +171,8 @@ void sleep_fxn(void)
 
     // Set the crystal oscillator as the dormant clock source, UART will be reconfigured from here
     // This is necessary before sending the pico into dormancy
-    sleep_run_from_xosc();
+    //sleep_run_from_xosc();
+    sleep_run_from_rosc();
 
     printf("Going dormant until GPIO %d goes edge high\n", PICO_WAKEUP_GPIO);
     uart_default_tx_wait_blocking();
@@ -182,10 +185,67 @@ void sleep_fxn(void)
     printf("awake now\n");
 }
 
+static const char *gpio_irq_str[] = {
+        "LEVEL_LOW",  // 0x1
+        "LEVEL_HIGH", // 0x2
+        "EDGE_FALL",  // 0x4
+        "EDGE_RISE"   // 0x8
+};
+
+void gpio_event_string(char *buf, uint32_t events) {
+    for (uint i = 0; i < 4; i++) {
+        uint mask = (1 << i);
+        if (events & mask) {
+            // Copy this event string into the user string
+            const char *event_str = gpio_irq_str[i];
+            while (*event_str != '\0') {
+                *buf++ = *event_str++;
+            }
+            events &= ~mask;
+
+            // If more events add ", "
+            if (events) {
+                *buf++ = ',';
+                *buf++ = ' ';
+            }
+        }
+    }
+    *buf++ = '\0';
+}
+
+void rtc_fxn()
+{
+    uint8_t val;
+        datetime_t t;
+
+	val = read_reg(0xf);
+	if (val & 0x1)
+	{
+		printf("alarm set, resetting\n");
+		write_reg(0xf, 0);
+	}
+    read_ext_rtc(&t);
+    set_alarm(&t);
+    set_psec_alarm();
+}
+uint8_t event_str[128];
+void gpio_callback(uint gpio, uint32_t events)
+{
+    static uint8_t count=0;
+	//gpio_acknowledge_irq(gpio, events);
+    rtc_fxn();
+    printf("count=%d\n",count);
+    count++;
+    gpio_event_string(event_str, events);
+    //gpio_set_irq_enabled(PICO_WAKEUP_GPIO, GPIO_IRQ_EDGE_FALL, false);
+}
+
+
 int main( void )
 {
     TaskHandle_t task;
     stdio_init_all();
+ #if 0
     g_wifi_ready_sem = xSemaphoreCreateBinary();
     if (g_wifi_ready_sem == NULL) 
     {
@@ -199,6 +259,8 @@ int main( void )
         UC_ERROR(("failed to create event group for sleeping\n"));
         return -1;
     }
+#endif
+
 #if 0
 
     g_udp_epaper_sem = xSemaphoreCreateBinary();
@@ -214,9 +276,33 @@ int main( void )
         return;
     }
 #endif        
+#if 0
     xTaskCreate(cy43_task, "CY43_Task", STACK_SIZE_CY43_TASK, NULL, PRIO_CY43_TASK, &g_th_cyw43);
 
 
     vTaskStartScheduler();
+#else
+printf("gpio irq example\n");
+    gpio_init (PICO_WAKEUP_GPIO);
+//	gpio_set_dir(PICO_WAKEUP_GPIO, GPIO_IN);
+//    gpio_pull_up(PICO_WAKEUP_GPIO);
+	gpio_set_irq_enabled_with_callback(PICO_WAKEUP_GPIO, GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
+
+    //gpio_init (19);
+	//gpio_set_dir(19, GPIO_OUT);
+    setup_ext_rtc();
+    rtc_fxn();
+    while (1);
+    {
+        //printf("i am up\n");
+        	static uint8_t val=0;
+	//val = val?0:1 ;
+    if (val)
+    val = 0;
+    else 
+    val = 1;
+	gpio_put(19, val);
+    }
+#endif    
     return 0;
 }

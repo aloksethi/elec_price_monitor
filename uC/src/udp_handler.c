@@ -362,6 +362,7 @@ void update_rtc(udp_timesync_t *p)
     else
     UC_DEBUG(("RTC in sync\n"));
 
+	set_alarm(&t);
 
 
 }
@@ -375,8 +376,10 @@ void udp_task(void *params)
         printf("Failed to create UDP PCB\n");
         vTaskDelete(NULL);
     }
-
-    g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
+	// the queue is being useed as a mutex too, i.e., the udp_rx_callback should not write to the same buffer
+	// which the udp task is currently processing. if the queue size is same as total number of buffsm then 
+	// will not be able to create this mutual exclusion.
+    g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS-1, sizeof(udp_msg_t));
     if (g_udp_rx_queue == NULL)
     {
         UC_ERROR(("failed to create udp rx queue\n"));
@@ -410,16 +413,18 @@ void udp_task(void *params)
                 // 2) Request RED image
                 req_rimg_data();
 
-                if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
+                if (xQueuePeek(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
                 {
                     UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if (qmsg.msg_type != MSG_TYPE_RIMG_DATA)
                     {
                         UC_ERROR(("wrong message type received?expecteing red data\n"));
+						xQueueReceive(g_udp_rx_queue, &qmsg, portMAX_DELAY); // empty the queue, it should not block as we already know there is data
                         continue;
                     }
                     int8_t ret_val;
                     ret_val = deinflate_payload(qmsg.idx, rimg_buf);
+					xQueueReceive(g_udp_rx_queue, &qmsg, portMAX_DELAY); // empty the queue, it should not block as we already know there is data
                     if (ret_val == 0)
                         break;
                 }
@@ -434,16 +439,18 @@ void udp_task(void *params)
             {
                 // 4) Request BLACK image
                 req_bimg_data();
-                if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
+                if (xQueuePeek(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
                 {
                     UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if (qmsg.msg_type != MSG_TYPE_BIMG_DATA)
                     {
                         UC_ERROR(("wrong message type received?expecteing black data\n"));
+						xQueueReceive(g_udp_rx_queue, &qmsg, portMAX_DELAY); // empty the queue, it should not block as we already know there is data
                         continue;
                     }
                     int8_t ret_val;
                     ret_val = deinflate_payload(qmsg.idx, bimg_buf);
+					xQueueReceive(g_udp_rx_queue, &qmsg, portMAX_DELAY); // empty the queue, it should not block as we already know there is data
                     if (ret_val == 0)
                         break;
                 }
@@ -463,16 +470,18 @@ void udp_task(void *params)
                 req_time_data();
                 udp_timesync_t *p_src;
 
-                if (xQueueReceive(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
+                if (xQueuePeek(g_udp_rx_queue, &qmsg, pdMS_TO_TICKS(UDP_CHUNK_TIMEOUT_MS)) == pdPASS)
                 {
                     UC_DEBUG(("INFO: Received, queue index:%d, msg_type:%d\n", qmsg.idx, qmsg.msg_type));
                     if ((qmsg.msg_type != MSG_TYPE_TIME_SYNC) || (qmsg.msg_len < (sizeof(udp_timesync_t))))
                     {
                         UC_ERROR(("something wrong with message type:%d, len:%d\n", qmsg.msg_type, qmsg.msg_len));
+						xQueueReceive(g_udp_rx_queue, &qmsg, portMAX_DELAY); // empty the queue, it should not block as we already know there is data
                         continue;
                     }
                     p_src = (udp_timesync_t *)(&reassembly_buff[qmsg.idx][0]); 
                     update_rtc(p_src);
+					xQueueReceive(g_udp_rx_queue, &qmsg, portMAX_DELAY); // empty the queue, it should not block as we already know there is data
                     break;
                 }
                 else
