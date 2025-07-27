@@ -78,7 +78,7 @@ void cy43_task(__unused void *params)
     {
         if (cyw43_arch_init()) {
             UC_ERROR(("failed to initialise\n"));
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(100));
             continue;
             //           exit(1);
             //           return;
@@ -100,7 +100,7 @@ void cy43_task(__unused void *params)
         if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK))
         {
             UC_ERROR(("failed to connect to Wi-Fi.\n"));
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(100));
             cyw43_arch_deinit();
             continue;
         } 
@@ -146,7 +146,7 @@ void cy43_task(__unused void *params)
             cyw43_arch_deinit(); //deinit the wifi to save power
                                  //print_task_details();
                                  //        g_do_not_sleep = 1;
-            vTaskDelay(pdMS_TO_TICKS(200));
+            //vTaskDelay(pdMS_TO_TICKS(30000));
             sleep_fxn();
         }
         else
@@ -174,11 +174,15 @@ void sleep_fxn(void)
     printf("Going dormant until GPIO %d goes edge high\n", PICO_WAKEUP_GPIO);
     uart_default_tx_wait_blocking();
 
+    ext_rtc_set_alarm();
     // Go to sleep until we see a high edge on GPIO 10
-    sleep_goto_dormant_until_edge_high(PICO_WAKEUP_GPIO);
+    //sleep_goto_dormant_until_edge_high(PICO_WAKEUP_GPIO);
+    sleep_goto_dormant_until_pin(PICO_WAKEUP_GPIO, true, false);
 
     // Re-enabling clock sources and generators.
     sleep_power_up();
+    ext_rtc_alarm_ack();
+    ext_rtc_power_down();
     printf("awake now\n");
 }
 

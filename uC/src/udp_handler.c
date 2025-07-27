@@ -140,7 +140,6 @@ static void udp_rx_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 }
 
  
-  
 //#define MAX_DECOMPRESSED_PAYLOAD_SIZE 4096
 //static uint8_t decompressed_output_buffer[MAX_DECOMPRESSED_PAYLOAD_SIZE];
 static int8_t deinflate_payload(uint8_t rx_msg_idx, uint8_t * p_dst)
@@ -344,28 +343,87 @@ void update_rtc(udp_timesync_t *p)
     datetime_t t;
 
     year = ntohs(p->year);
+    //ext_rtc_read_time(&t); // no need to read rtc as i am powering it off
 
-        read_ext_rtc(&t);
-
-    if ((t.year != year) || (t.month != p->mon) || (t.day != p->date) || (t.hour != p->hr) || (t.min != p->min) || (t.sec != p->sec))
+    //if ((t.year != year) || (t.month != p->mon) || (t.day != p->date) || (t.hour != p->hr) || (t.min != p->min) || (t.sec != p->sec))
     {
         UC_DEBUG(("from server: yr:%d, mon:%d, date:%d, hr:%d, min:%d, sec:%d\n", year, p->mon, p->date, p->hr, p->min, p->sec));
-        UC_DEBUG(("from rtc: yr:%d, mon:%d, date:%d, hr:%d, min:%d, sec:%d\n", t.year, t.month, t.day, t.hour, t.min, t.sec));
+        //UC_DEBUG(("from rtc: yr:%d, mon:%d, date:%d, hr:%d, min:%d, sec:%d\n", t.year, t.month, t.day, t.hour, t.min, t.sec));
         t.year = year;
         t.month = p->mon;
         t.day = p->date; 
         t.hour = p->hr;
         t.min = p->min;
         t.sec = p->sec;
-        write_ext_rtc(&t);
+        ext_rtc_write_time(&t);
     }
-    else
-    UC_DEBUG(("RTC in sync\n"));
-
-
-
+    //else
+    //UC_DEBUG(("RTC in sync\n"));
 }
 //extern volatile uint8_t g_do_not_sleep;
+TaskHandle_t xButtonTaskHandle = NULL;
+// ISR for GPIO interrupts
+void gpio_irq_handler(uint gpio, uint32_t events) {
+    // Acknowledge the interrupt for the specific GPIO and event
+    // It's crucial to acknowledge the interrupt *before* notifying the task,
+    // especially if the task takes a long time, to prevent re-triggering.
+    gpio_acknowledge_irq(gpio, events);
+
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    // Check if the interrupt is from our button and it's a falling edge
+    if (gpio == PICO_WAKEUP_GPIO && (events & GPIO_IRQ_EDGE_FALL)) {
+        // Notify the task that the button was pressed
+        // We can pass the GPIO number as the notification value if needed
+        xTaskNotifyFromISR(xButtonTaskHandle, gpio, eSetValueWithOverwrite, &xHigherPriorityTaskWoken);
+    }
+
+    // If xHigherPriorityTaskWoken is pdTRUE, then a context switch should be performed
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+// Task to handle button presses
+void vButtonTask(void *pvParameters) {
+    uint32_t notified_gpio;
+    for (;;) {
+        // Wait indefinitely for a notification from the ISR
+        if (xTaskNotifyWait(0x00,          // Clear no bits on entry.
+                            ULONG_MAX,     // Clear all bits on exit.
+                            &notified_gpio, // Where to store the notification value.
+                            portMAX_DELAY) == pdTRUE) {
+            // A falling edge interrupt on GPIO_BUTTON_PIN occurred
+            printf("Button pressed on GPIO %lu (falling edge detected)!\n", notified_gpio);
+            // Implement debouncing here if needed.
+            // A simple software debounce could involve a short delay or
+            // disabling interrupts on this pin for a period and re-enabling.
+			ext_rtc_alarm_ack();
+			ext_rtc_set_alarm();
+
+        }
+    }
+}
+
+// Initialization function for the GPIO interrupt
+void init_gpio_interrupt(void) {
+    // 1. Initialize the GPIO pin
+    gpio_init(PICO_WAKEUP_GPIO);
+    gpio_set_dir(PICO_WAKEUP_GPIO, GPIO_IN);
+    // Enable pull-up resistor for button connected to GND to detect falling edge
+    gpio_pull_up(PICO_WAKEUP_GPIO); 
+
+    // 2. Set the generic GPIO interrupt handler for the current core
+    //    This handler will be called for any GPIO interrupt enabled on this core.
+   gpio_set_irq_enabled_with_callback(PICO_WAKEUP_GPIO, GPIO_IRQ_EDGE_FALL, true, gpio_irq_handler);
+
+    // 3. Enable the specific interrupt event for GPIO 18 (falling edge)
+    gpio_set_irq_enabled(PICO_WAKEUP_GPIO, GPIO_IRQ_EDGE_FALL, true);
+
+    // 4. Enable the GPIO interrupt in the Nested Vectored Interrupt Controller (NVIC)
+    irq_set_enabled(IO_IRQ_BANK0, true);
+
+    printf("GPIO %d configured for falling edge interrupt.\n", PICO_WAKEUP_GPIO);
+}
+
 void udp_task(void *params) 
 {
     uint8_t tmp=0;
@@ -391,8 +449,20 @@ void udp_task(void *params)
         return;
     }
 #endif		
-    setup_ext_rtc();
-
+    // initialize the i2c and the gpios
+    ext_rtc_setup();
+	#if 0
+	xTaskCreate(vButtonTask,
+                "ButtonTask",
+                configMINIMAL_STACK_SIZE,
+                NULL,
+                tskIDLE_PRIORITY + 1,
+                &xButtonTaskHandle);
+	
+	init_gpio_interrupt();
+	//set_psec_alarm();
+	ext_rtc_set_alarm();
+	#endif
     while (1) {
         EventBits_t uxBits;
         udp_qmsg_t qmsg;
@@ -472,7 +542,12 @@ void udp_task(void *params)
                         continue;
                     }
                     p_src = (udp_timesync_t *)(&reassembly_buff[qmsg.idx][0]); 
-                    update_rtc(p_src);
+                    ext_rtc_power_up(); // apply power here, remove power after
+                                        // waking up
+                    update_rtc(p_src); // update the rtc with correct time,
+                                       // will set the alarm in main once about
+                                       // to sleep
+					//set_alarm();
                     break;
                 }
                 else

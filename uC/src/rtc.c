@@ -27,7 +27,38 @@ static uint8_t conv_bcd_to_val(uint8_t code)
 	return val;
 }
 
-void setup_ext_rtc() 
+static uint8_t ext_rtc_read_reg(uint8_t reg)
+{
+	uint8_t  val;
+
+	int ret;
+	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &reg, 1, true);  // true to keep master control of bus
+    if (ret == PICO_ERROR_GENERIC)
+		UC_ERROR(("failed to wirite ext rtc\n"));
+	
+	ret = i2c_read_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &val, 1, false);  // false - finished with bus
+	if (ret == PICO_ERROR_GENERIC)
+		UC_ERROR(("failed to read ext rtc\n"));
+
+	printf("reg:%x value is %x\n", reg, val);
+	return val;
+}
+
+static void ext_rtc_write_reg(uint8_t reg, uint8_t val)
+{
+	uint8_t  tmp[2];
+	int ret;
+
+	tmp[0] = reg;
+	tmp[1] = val;
+	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &tmp[0], 2, true);  // true to keep master control of bus
+    if (ret == PICO_ERROR_GENERIC)
+		UC_ERROR(("failed to wirite ext rtc\n"));
+
+	return;
+}
+
+void ext_rtc_setup(void) 
 {
     gpio_init(EXT_RTC_I2C_SDA_PIN);
     gpio_set_function(EXT_RTC_I2C_SDA_PIN, GPIO_FUNC_I2C);
@@ -39,10 +70,21 @@ void setup_ext_rtc()
 
     i2c_init(EXT_RTC_I2C_DEV, EXT_RTC_I2C_BAUDRATE);
 
+    gpio_init(EXT_RTC_POWER_PIN);
+	gpio_set_dir(EXT_RTC_POWER_PIN, GPIO_OUT);
+
 	return;
 }
+void ext_rtc_power_up(void)
+{
+	gpio_put(EXT_RTC_POWER_PIN, true);
+}
+void ext_rtc_power_down(void)
+{
+	gpio_put(EXT_RTC_POWER_PIN, false);
+}
 
-void write_ext_rtc(datetime_t *t)
+void ext_rtc_write_time(datetime_t *t)
 {
 	// lets write only the hours and mins
 	uint8_t buf[8];  // two bytes of data and one register address
@@ -62,7 +104,7 @@ void write_ext_rtc(datetime_t *t)
 
 }
 
-void read_ext_rtc(datetime_t *t)
+void ext_rtc_read_time(datetime_t *t)
 {
  	uint8_t buf[7];
     uint8_t reg = EXT_RTC_SEC_REG;
@@ -94,6 +136,98 @@ void read_ext_rtc(datetime_t *t)
 	t->sec = conv_bcd_to_val(buf[EXT_RTC_SEC_REG]);
 
 	//printf("Time:%02d:%02d:%02d  Day:%1d Date:%02d-%02d-%02d\n",t->hour, t->min, t->sec , t->dotw, t->day, t->month, t->year);
+	return;
+}
+
+void ext_rtc_alarm_ack(void)
+{
+    uint8_t val;
+//    datetime_t t;
+
+	ext_rtc_write_reg(EXT_RTC_CONTROL_REG, 0x1c);//disable interrupt
+	val = ext_rtc_read_reg(0xf);
+	if ((val & 0x1) || (val & 0x2)) // if alarm 1 or 2 is set
+	{
+		printf("alarm set, resetting\n");
+		ext_rtc_write_reg(0xf, 0);
+	}
+    //read_ext_rtc(&t);
+    //set_alarm(&t);
+    //set_psec_alarm();
+}
+
+// alarm per second
+void ext_rtc_set_psec_alarm(void)
+{
+	uint8_t config_reg[2];
+	uint8_t alarm_config[5];
+	int ret;
+	uint8_t min_val, sec_val;
+	ext_rtc_alarm_ack();
+
+	// alarm when seconds n minutes match, Table 3, A1M4=A1M3=1/ A1M2=A1M1=0
+	alarm_config[0] = EXT_RTC_A1_SEC_REG; // start with A1SEC register
+	alarm_config[1] = 0x80;//conv_val_to_bcd(sec_val);// reset A1M1, set the seconds
+	alarm_config[2] = 0x80;conv_val_to_bcd(min_val);// reset A1M2, set the mins
+	alarm_config[3] = 0x80;// set A1M3
+	alarm_config[4] = 0x80;// set A1M4
+
+	config_reg[0] = EXT_RTC_CONTROL_REG; //control register 
+	config_reg[1] = 0x1d;//0x03 | 0x01 | 0x14 ; //enable INTCN and A1IE 
+
+	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &alarm_config[0], sizeof(alarm_config), true);  // true to keep master control of bus
+    if (ret == PICO_ERROR_GENERIC)
+		UC_ERROR(("failed to wirite ext rtc\n"));
+	
+	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &config_reg[0], sizeof(config_reg), false);  // release the bus
+    if (ret == PICO_ERROR_GENERIC)
+		UC_ERROR(("failed to wirite ext rtc\n"));
+	
+		printf("set the alarm");
+	return;
+
+}
+
+//void set_alarm(datetime_t * curr_t)
+void ext_rtc_set_alarm(void)
+{
+// setup an alarm to go off at the start of next hr
+	uint8_t config_reg[2];
+	uint8_t alarm_config[5];
+	int ret;
+	uint8_t min_val, sec_val;
+	datetime_t curr_t;
+	
+	ext_rtc_alarm_ack();
+	
+	ext_rtc_read_time(&curr_t); //debug version
+	
+	// need an alarm at start of every hour
+	//min_val = (60 - curr_t.min)%60;
+	//timer for a minute
+	min_val = (1 + curr_t.min)%60; // try interrupting every minute
+	sec_val = curr_t.sec;  
+	// alarm when seconds n minutes match, Table 3, A1M4=A1M3=1/ A1M2=A1M1=0
+	alarm_config[0] = EXT_RTC_A1_SEC_REG; // start with A1SEC register
+	alarm_config[1] = conv_val_to_bcd(sec_val);// reset A1M1, set the seconds
+	alarm_config[2] = conv_val_to_bcd(min_val);// reset A1M2, set the mins
+	alarm_config[3] = 0x80;// set A1M3
+	alarm_config[4] = 0x80;// set A1M4
+
+	config_reg[0] = EXT_RTC_CONTROL_REG; //control register 
+	config_reg[1] = 0x1d;//0x03 | 0x01 | 0x14 ; //enable INTCN and A1IE 
+
+	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &alarm_config[0], sizeof(alarm_config), true);  // true to keep master control of bus
+    if (ret == PICO_ERROR_GENERIC)
+		UC_ERROR(("failed to wirite ext rtc\n"));
+	
+	ret = i2c_write_blocking(EXT_RTC_I2C_DEV, EXT_RTC_I2C_ADDRESS, &config_reg[0], sizeof(config_reg), false);  // release the bus
+    if (ret == PICO_ERROR_GENERIC)
+		UC_ERROR(("failed to wirite ext rtc\n"));
+	
+		printf("set the alarm");
+
+	printf("setting alarm: cur_min:sec:%d:%d set_min:sec:%d:%d\n", curr_t.min, curr_t.sec, min_val, sec_val);
 	return;
 }
 
