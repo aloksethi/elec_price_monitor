@@ -5,6 +5,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import platform
 from . import config
+#import pdb
 class Log:
     # Class variables/attributes for singleton pattern. they are equivalent to global variables
     _instance = None  # Stores the single instance
@@ -39,10 +40,11 @@ class Log:
             self.log_dir = self._get_log_dir()
             self.log_dir.mkdir(parents=True, exist_ok=True)
             self.log_file = self.log_dir / 'app.log'
-            self.default_level = logging.INFO
-            self._loggers = {}  # Dictionary to store logger instances
+            self.default_level = logging.DEBUG
+            self._setup_root_logger()
             # Mark initialization as complete
             Log._initialized = True
+            #pdb.set_trace()
 
     def _get_log_dir(self):
         """
@@ -57,69 +59,73 @@ class Log:
             # Standard Linux path
             return Path(f"{config.APP_NAME}/logs")
 
+    def _setup_root_logger(self):
+        """
+        Configure the root logger with file and console handlers.
+        This runs only once.
+        """
+        root_logger = logging.getLogger() # Get the root logger
+        root_logger.setLevel(self.default_level)
+
+        # Clear existing handlers from root logger to prevent duplicates on re-init (if any)
+        # This is important if your application might re-instantiate Log
+        if not root_logger.handlers:
+            # File Handler
+            file_handler = RotatingFileHandler(
+                self.log_file,
+                maxBytes=1024 * 1024,  # 1MB
+                backupCount=5
+            )
+            file_handler.setFormatter(logging.Formatter(self.log_format, self.date_format))
+            root_logger.addHandler(file_handler)
+
+            # Console Handler (for errors only)
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setLevel(logging.ERROR) # Only show ERRORs on console
+            console_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+            root_logger.addHandler(console_handler)
+
     def setup_logger(self, logger_name, level=None):
         """
-        Configure and return a logger instance
-        Args:
-            logger_name: Name of the logger (usually __name__ from the calling module)
-            level: Optional logging level
+        Get or create a named logger. These loggers will propagate messages
+        to the root logger's handlers by default.
         """
-        # Get or create logger with specified name
-        if logger_name in self._loggers:
-            return self._loggers[logger_name]
-
         logger = logging.getLogger(logger_name)
-        # Use provided level or default
-        level = level or self.default_level
-        logger.setLevel(level)
-
-        # Remove any existing handlers to avoid duplicates
-        logger.handlers.clear()
-
-        # Create file handler with rotation
-        file_handler = RotatingFileHandler(
-            self.log_file,
-            maxBytes=1024 * 1024,  # 1MB
-            backupCount=5
-        )
-        file_handler.setFormatter(logging.Formatter(self.log_format, self.date_format))
-
-        # Create console handler
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.ERROR)
-        console_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
-#        console_handler.setFormatter(logging.Formatter(self.log_format, self.date_format))
-
-        # Add both handlers to logger
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
-        self._loggers[logger_name] = logger
+        logger.setLevel(level or self.default_level)
+        # Ensure propagation is True by default for named loggers to send to root
+        logger.propagate = True
         return logger
 
     @classmethod
+    def get_logger(cls, name):
+        """
+        Class method to get a logger instance.
+        Ensures the Log singleton is initialized and then returns the named logger.
+        """
+        # Ensure the singleton is initialized before getting any logger
+        log_instance = cls()
+        return log_instance.setup_logger(name)
+    """
+    @classmethod
     def debug(cls, logger_name, message):
-        """Log debug message for specified logger"""
         logger = cls.get_logger(logger_name)
         logger.debug(message)
 
     @classmethod
     def info(cls, logger_name, message):
-        """Log info message for specified logger"""
         logger = cls.get_logger(logger_name)
         logger.info(message)
 
     @classmethod
     def warning(cls, logger_name, message):
-        """Log warning message for specified logger"""
         logger = cls.get_logger(logger_name)
         logger.warning(message)
 
     @classmethod
     def error(cls, logger_name, message):
-        """Log error message for specified logger"""
         logger = cls.get_logger(logger_name)
         logger.error(message)
-
+    """
     def set_format(self, format_string, date_format=None):
         """
         Set custom format for log messages
@@ -133,28 +139,17 @@ class Log:
             self.date_format = date_format
 
         formatter = logging.Formatter(self.log_format, self.date_format)
-        for logger in self._loggers.values():
-            for handler in logger.handlers:
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers:
                 handler.setFormatter(formatter)
 
     def change_log_level(self, logger_name, level):
         """
-        Change the logging level for a specific logger
-        Args:
-            logger_name: Name of the logger to modify
-            level: New logging level
+        Change the logging level for a specific named logger.
+        If logger_name is empty or "root", it changes the root logger's level.
         """
-        if logger_name in self._loggers:
-            self._loggers[logger_name].setLevel(level)
+        if not logger_name or logger_name == "root":
+            logging.getLogger().setLevel(level)
         else:
             logger = self.setup_logger(logger_name, level)
-            self._loggers[logger_name] = logger
-
-    @classmethod
-    def get_logger(cls, name):
-        """
-        Class method to get a logger instance
-        Args:
-            name: Name for the logger
-        """
-        return cls().setup_logger(name)
+            logger.setLevel(level) # Ensure the level is set on the specific logger

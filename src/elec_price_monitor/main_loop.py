@@ -12,7 +12,7 @@ from datetime import datetime
 from queue import Queue
 
 
-
+log_manager = Log() # This ensures the root logger is configured
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.DEBUG)
 
