@@ -5,11 +5,11 @@ import os
 from datetime import datetime, timedelta, timezone
 import xml.etree.ElementTree as ET
 import time
-
+import pdb
 
 
 logger = Log.get_logger(__name__)
-Log().change_log_level(__name__, Log.WARNING)
+Log().change_log_level(__name__, Log.INFO)
 
 
 def utc_time_to_local(utc_time:str) -> datetime:
@@ -141,14 +141,15 @@ def fetch_elec_data(dt:datetime) ->dict:
 
     return data
 
-
-def fix_elec_data(today_data, tmrw_data) -> tuple[dict, dict]:
-    if (len(today_data) != 24) or (len(tmrw_data) != 24):
-        logger.info(f'{len(today_data) =} {len(tmrw_data) =}')
+# added third argument cause in case of day rollover, the tmrw_data becomes today_data and tmrw_data
+# was already fixed. Bug was that that todays data always had nan as value for 00 hr.
+def fix_elec_data(today_data, tmrw_data, today_data_alrdy_fixed) -> tuple[dict, dict]:
+    #if (len(today_data) != 24) or (len(tmrw_data) != 24):
+    logger.info(f'{len(today_data) =} {len(tmrw_data) =}')
 
     fxd_today_data = [{'date': '', 'hour': i, 'price': float('nan')} for i in range(24)]
     fxd_tmrw_data = [{'date': '', 'hour': i, 'price': float('nan')} for i in range(24)]
-
+    #pdb.set_trace()
     # this part is probably not needed.
     numel = len(today_data)
     if (numel <= 2):# i don;t know how to deal if there are less than three elments in the array, assuming 0 will
@@ -156,9 +157,15 @@ def fix_elec_data(today_data, tmrw_data) -> tuple[dict, dict]:
         logger.error(f'numel is less than 2 {numel =}')
 
     # do the fix only if there is no hour=0 entry in today data
-    if (int(today_data[0]['hour']) == 0):
+    if (today_data_alrdy_fixed == True):
+        logger.info(f"today data was already fixed, {int(today_data[0]['hour'])=}")
+
+    #if (int(today_data[0]['hour']) == 0):
+    if (today_data_alrdy_fixed == True):
+        logger.info(f"hour[0] entry exists, {today_data[0]['hour']=}")
         fxd_today_data[0]['price'] = today_data[0]['price']
     else:
+        logger.info(f"hour[0] entry does not exists, settig price to nan, {today_data[0]['hour']=}")
         fxd_today_data[0]['price'] = float('nan')
 
     fxd_today_data[0]['date'] = today_data[0]['date']
@@ -192,10 +199,10 @@ def fix_elec_data(today_data, tmrw_data) -> tuple[dict, dict]:
 def elec_fetch_loop(stop_event, queue_out):
     today_data = []
     tmrw_data = []
+    today_data_alrdy_fixed = False
 
     last_sent_data = None
     last_fetch_date = None
-
     while not stop_event.is_set():
         try:
             now = datetime.now()
@@ -210,6 +217,7 @@ def elec_fetch_loop(stop_event, queue_out):
                 today_data = tmrw_data
                 tmrw_data = []
                 last_fetch_date = today_str
+                today_data_alrdy_fixed = True
                 logger.info("Date changed — shifted tmrw_data to today_data.")
 
             if not today_data:
@@ -244,7 +252,7 @@ def elec_fetch_loop(stop_event, queue_out):
 
             if today_data:
                 # If today’s data is valid, fix and send even if tmrw_data is not present
-                fxd_today_data, fxd_tmrw_data = fix_elec_data(today_data, tmrw_data)
+                fxd_today_data, fxd_tmrw_data = fix_elec_data(today_data, tmrw_data, today_data_alrdy_fixed)
                 data_bundle = {
                     'today': fxd_today_data,
                     'tmrw': fxd_tmrw_data
