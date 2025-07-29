@@ -189,7 +189,9 @@ void sleep_fxn(void)
 int main( void )
 {
     TaskHandle_t task;
-    stdio_init_all();
+#ifdef UC_DEBUG_ON    
+    stdio_init_all(); //not needed in not debug
+#endif
     g_wifi_ready_sem = xSemaphoreCreateBinary();
     if (g_wifi_ready_sem == NULL) 
     {
