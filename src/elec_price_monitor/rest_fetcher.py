@@ -9,7 +9,7 @@ import pdb
 
 
 logger = Log.get_logger(__name__)
-Log().change_log_level(__name__, Log.INFO)
+Log().change_log_level(__name__, Log.DEBUG)
 
 
 def utc_time_to_local(utc_time:str) -> datetime:
@@ -262,6 +262,9 @@ def elec_fetch_loop(stop_event, queue_out):
                     last_sent_data = data_bundle
                     logger.info("Sent fixed data to renderer.")
 
+            now = datetime.now()
+            next_day = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0);
+            seconds_till_next_day = (next_day - now).seconds
             # Decide sleep interval
             if today_data and tmrw_data:
                 sleep_duration = config.SLEEP_DUR_DATA_AVLBL
@@ -269,7 +272,9 @@ def elec_fetch_loop(stop_event, queue_out):
                 sleep_duration = config.SLEEP_DUR_NO_TMRW_DATA
             else:
                 sleep_duration = config.SLEEP_DUR_NO_DATA
-
+            
+            if (sleep_duration > seconds_till_next_day):
+                sleep_duration = seconds_till_next_day
         except Exception as e:
             logger.error(f'Exception in elec_fetch_loop: {e}')
             if isinstance(e, ValueError):
