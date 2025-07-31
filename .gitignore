@@ -1,0 +1,51 @@
+tags
+# KiCad backup and autosave files
+*.bak
+*.autosave
+*.tmp
+
+# Cache and rescue files
+*.kicad_sch-bak
+**/*.kicad_prl        # Panel layout settings
+*-cache.lib        # (KiCad 5, obsolete)
+*-rescue.kicad_sym # auto-rescued symbols
+*.dcm              # deprecated component metadata
+*.sch-bak
+
+# Build outputs
+*.zip
+*.pos
+*.bom
+*.gtp
+*.gts
+*.gbl
+*.gbr
+*.gbo
+*.gko
+*.drl
+*.ger
+*.step
+*.stp
+
+# 3D viewer cache (v7+)
+3dviewer-settings.json
+
+# User preferences (machine-specific)
+fp-info-cache
+.sym-lib-table
+
+.venv
+# Python cache and packaging files
+__pycache__/
+dist/
+*.py[cod]
+*.egg-info/
+*.eggs/
+*.pyo
+*.pyd
+*.pkl
+*.log
+*.pytest_cache/
+*.mypy_cache/
+*.coverage
+.cache/
