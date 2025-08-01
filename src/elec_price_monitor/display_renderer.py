@@ -22,6 +22,25 @@ ROW_COUNT = 24
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.DEBUG)
 
+def battery_level_to_pctg(reported_v):
+    SCALING_FACTOR = 255/5 #UINT8_MAX/5
+    actual_voltage = reported_v/float(SCALING_FACTOR)
+    logger.info(f"{reported_v=}, {actual_voltage=}.")
+
+    if actual_voltage > 3.9:        # 1.3 * 3
+        level = 100
+    elif actual_voltage > 3.825:   # 1.275 *3
+        level = 80
+    elif actual_voltage > 3.75:   # 1.25 *3
+        level = 60
+    elif actual_voltage > 3.6:   # 1.2 *3
+        level = 40
+    elif actual_voltage > 3.36:   # 1.25 *3    
+        level = 10
+    else:
+        level = 0
+    
+    return level
 def draw_battery(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, font: ImageFont.ImageFont):
     # Configs
     radius = 3  # Rounded corner radius
@@ -38,7 +57,7 @@ def draw_battery(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, font: Im
     draw.rectangle([stub_x0, stub_y0, stub_x1, stub_y1], fill=(0, 0, 0))
 
     # Battery level text inside body
-    percent_text = f"{level}"
+    percent_text = f"{battery_level_to_pctg(level)}"
     bbox = draw.textbbox((0, 0), percent_text, font=font)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]

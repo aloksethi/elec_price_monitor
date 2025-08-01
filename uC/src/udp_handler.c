@@ -192,7 +192,9 @@ void read_batt_charge(uint8_t *batt_level)
     float meas_v;
     uint32_t vsys = 0;
     const float conversion_factor = 3.3f / (1 << 12);
-
+    const uint8_t scaling_factor = UINT8_MAX/5;// max i/p voltage is going to
+                                               // be 5v
+    //(1<<(sizof(*batt_level)*8)-1)/5;//no neeed to calculate
     adc_init();
     cyw43_thread_enter();
     // Make sure cyw43 is awake
@@ -222,15 +224,18 @@ void read_batt_charge(uint8_t *batt_level)
 
     cyw43_thread_exit();
     // Generate voltage
-    meas_v = vsys * 3 * conversion_factor;
+    meas_v = vsys * 3 * conversion_factor * scaling_factor;
     //	printf("voltage: %f \n", meas_v);
+#if 0
     //	rough levels for a li-ion cell
     if (meas_v > 4.0) *batt_level = 100;
     else if (meas_v > 3.7) *batt_level = 75;
     else if (meas_v > 3.5) *batt_level = 50;
     else if (meas_v > 3.3) *batt_level = 25;
     else *batt_level = 5;
-
+#endif
+    // sending the scaled up voltage as it is
+    *batt_level = (uint8_t)(meas_v);
     return ;
 }
 void send_udp_packet(uint8_t * payload, uint8_t payload_len)
