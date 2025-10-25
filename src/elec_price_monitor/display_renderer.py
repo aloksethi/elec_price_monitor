@@ -81,7 +81,7 @@ def get_font(font_name, font_size):
     raise Exception("Failed to find font")
     #return font_path;
 def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> Image.Image:
-    image = Image.new('RGB', (WIDTH, HEIGHT), 'white')
+    image = Image.new('RGB', (WIDTH, HEIGHT), 'black')
     draw = ImageDraw.Draw(image)
 
     font_header = get_font('DejaVuSans-Bold', 20)#"DejaVuSans-Bold.ttf", FONT_SIZE_HEADER)
@@ -103,11 +103,11 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
     bbox = draw.textbbox((0, 0), hdr_str, font=font_header)
     text_width = bbox[2] - bbox[0]
     x_pos = (WIDTH - text_width) // 2
-    draw.text((x_pos, hdr_y), hdr_str, font=font_header, fill=(0, 0, 0))
+    draw.text((x_pos, hdr_y), hdr_str, font=font_header, fill=(255, 255, 255))
     draw_battery(draw, x=WIDTH - 80, y=hdr_y, level=device['batt'], font=font_batt)
 
     dividr_y = hdr_y + BAT_BODY_HEIGHT + 0
-    draw.line((0, dividr_y, WIDTH, dividr_y), width=2, fill=(0, 0, 0))
+    draw.line((0, dividr_y, WIDTH, dividr_y), width=2, fill=(255, 255, 255))
     # Rows start below header
     start_y = dividr_y + 0
     row_height = (HEIGHT - start_y - 4*2) // 24  # fit 24 rows
@@ -122,7 +122,7 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
             txt_col = (255,0,0)
         else:
             font_to_use = font_row_bold
-            txt_col = (0, 0, 0)
+            txt_col = (255, 255, 255)
 
 
         price_today = today_data[i]['price']
@@ -130,7 +130,7 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> 
 
         draw.text((10, y), f"{hour:>02}:00", font=font_to_use, fill=txt_col)
         draw.text((80, y), f"{price_today:10.01f}", font=font_to_use, fill=txt_col)
-        draw.text((200, y), f"{price_tmrw:10.01f}", font=font_row_bold, fill=(0, 0, 0))
+        draw.text((200, y), f"{price_tmrw:10.01f}", font=font_row_bold, fill=(255, 255, 255))
 
     #    draw.line((5, y + 2 + row_height, 340, y + 2 + row_height), width=1, fill=(0,0,0))
 
