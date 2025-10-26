@@ -42,6 +42,10 @@ class Log:
             self.log_file = self.log_dir / 'app.log'
             self.default_level = logging.DEBUG
             self._setup_root_logger()
+
+            # Silence urllib3
+            logging.getLogger("requests").setLevel(logging.WARNING)
+            logging.getLogger("urllib3").setLevel(logging.WARNING)
             # Mark initialization as complete
             Log._initialized = True
             #pdb.set_trace()
