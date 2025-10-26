@@ -5,7 +5,8 @@ import os
 from datetime import datetime, timedelta, timezone
 import xml.etree.ElementTree as ET
 import time
-import pdb
+from statistics import mean
+#import pdb
 
 
 logger = Log.get_logger(__name__)
@@ -13,6 +14,7 @@ Log().change_log_level(__name__, Log.DEBUG)
 
 
 def utc_time_to_local(utc_time:str) -> datetime:
+    # TODO: fix it for dST.
     utc_datetime = datetime.strptime(utc_time, "%Y-%m-%dT%H:%MZ")
     utc_datetime = utc_datetime.replace(tzinfo=timezone.utc)
     local_time = utc_datetime.astimezone()
@@ -84,6 +86,7 @@ def parse_xml(xml_data:str):
             data.append({
                 'date': pos_time.strftime("%d-%m-%Y"),
                 'hour': pos_time.strftime("%H"),
+                'min': pos_time.strftime("%M"),
                 'price': round(float(price.text)/10, 3) #converting from e/MWh to c/KWh
             })
         logger.debug(f"{data}")
@@ -125,7 +128,7 @@ def fetch_elec_data(dt:datetime) ->dict:
     safe_params = params.copy()
     safe_params["securityToken"] = "*****"
 
-    logger.debug(f"Fetching data with parameters: {safe_params}")
+    logger.debug(f"Fetching data with parameters: {safe_params}")# log has security token #FIXME
     try:
         response = requests.get(config.BASE_URL, params=params)
         response.raise_for_status()
@@ -141,59 +144,109 @@ def fetch_elec_data(dt:datetime) ->dict:
 
     return data
 
+def aggregate_day(data, date_str, start_hour=0, end_hour=24, last_price=0):
+    """Aggregate quarter-hourly data into hourly means."""
+    fxd_day = [{'date': date_str, 'hour': i, 'price': float('nan')} for i in range(24)]
+    for hour in range(start_hour, end_hour):
+        hour_prices = []
+        for minute in [0, 15, 30, 45]:
+            entry = next((item for item in data if int(item['hour']) == hour and int(item['min']) == minute), None)
+            if entry:
+                last_price = float(entry['price'])
+            hour_prices.append(last_price)
+        avg_price = mean(hour_prices) if hour_prices else float('nan')
+        fxd_day[hour] = {'date': date_str, 'hour': hour, 'price': avg_price}
+    return fxd_day
+
+def fix_raw_elec_data(data) -> tuple[dict, dict]:
+    #if the time went forward i.e., daylight saving starts
+    #TODO: on the day DST starts and ends, the values are going to be wrong.
+    # if daylight saving ends, then there will be two hr=3 entries and hr=1 is for the next day hr=[0] is todays 23:00 value.
+    # This happens on last sunday of October
+
+    today_date = data[0]['date']
+    # Separate hour 0 (belongs to next day) from today's data
+    today_main = [d for d in data if int(d['hour']) != 0]
+    tmrw_hour0 = [d for d in data if int(d['hour']) == 0]
+    # Aggregate today's data (1–23)
+    fxd_data = aggregate_day(today_main, today_date, start_hour=1, end_hour=24)
+    tmp_data = aggregate_day(tmrw_hour0, '')
+    tmrw_price = tmp_data[0]['price']
+
+    return fxd_data, tmrw_price
+
 # added third argument cause in case of day rollover, the tmrw_data becomes today_data and tmrw_data
 # was already fixed. Bug was that that todays data always had nan as value for 00 hr.
 def fix_elec_data(today_data, tmrw_data, today_data_alrdy_fixed) -> tuple[dict, dict]:
-    #if (len(today_data) != 24) or (len(tmrw_data) != 24):
-    logger.info(f'{len(today_data) =} {len(tmrw_data) =}')
-
     fxd_today_data = [{'date': '', 'hour': i, 'price': float('nan')} for i in range(24)]
     fxd_tmrw_data = [{'date': '', 'hour': i, 'price': float('nan')} for i in range(24)]
     #pdb.set_trace()
-    # this part is probably not needed.
-    numel = len(today_data)
-    if (numel <= 2):# i don;t know how to deal if there are less than three elments in the array, assuming 0 will
-        # contain data of yesterday and -1 will contain data of tmrw, so i will use 1 as data of today
-        logger.error(f'numel is less than 2 {numel =}')
 
     # do the fix only if there is no hour=0 entry in today data
     if (today_data_alrdy_fixed == True):
         logger.info(f"today data was already fixed, {int(today_data[0]['hour'])=}")
-
-    #if (int(today_data[0]['hour']) == 0):
-    if (today_data_alrdy_fixed == True):
         logger.info(f"hour[0] entry exists, {today_data[0]['hour']=}")
-        fxd_today_data[0]['price'] = today_data[0]['price']
+        tmp = []
+        for i in range(4):
+            tmp.append(today_data[i]['price'])
+        fxd_today_data[0]['price'] = mean(tmp)
     else:
         logger.info(f"hour[0] entry does not exists, settig price to nan, {today_data[0]['hour']=}")
         fxd_today_data[0]['price'] = float('nan')
 
-    fxd_today_data[0]['date'] = today_data[0]['date']
-    fxd_today_data[0]['hour'] = 0  # today_data[0]['hour']
+    today_date = today_data[0]['date']
 
-    fxd_tmrw_data[0]['date'] = today_data[-1]['date']
-    fxd_tmrw_data[0]['hour'] = int(today_data[-1]['hour'])
-    fxd_tmrw_data[0]['price'] = today_data[-1]['price']
-    ii = 0
-    for i in range(1, 24):
-        fxd_today_data[i]['date'] = today_data[0]['date']
-        fxd_today_data[i]['hour'] = (i)
-        if (int(today_data[ii]['hour']) == i):
-            fxd_today_data[i]['price'] = today_data[ii]['price']
-            ii = ii + 1
+    # Separate hour 0 (belongs to next day) from today's data
+    today_main = [d for d in today_data if int(d['hour']) != 0]
+    tmrw_hour0 = [d for d in today_data if int(d['hour']) == 0]
+
+    # Aggregate today's data (1–23)
+    fxd_today_data, last_price = aggregate_day(today_main, today_date, start_hour=1, end_hour=24)
+
+    # --- Process tomorrow_data ---
+    if not tmrw_data:
+        # If empty, start tomorrow from the carried-over hour 0 data
+        tmrw_date = None
+        if tmrw_hour0:
+            # infer date from today + 1 day
+            from datetime import datetime, timedelta
+            tmrw_date = (datetime.strptime(today_date, "%d-%m-%Y") + timedelta(days=1)).strftime("%d-%m-%Y")
         else:
-            fxd_today_data[i]['price'] = fxd_today_data[i-1]['price']
+            tmrw_date = ''
+        tmrw_combined = tmrw_hour0
+    else:
+        # Merge hour 0 from today into tomorrow_data
+        tmrw_date = tmrw_data[0]['date']
+        tmrw_combined = tmrw_hour0 + tmrw_data
 
-    if (len(tmrw_data) > 0):
-        ii = 0
-        for i in range(1, 24):
-            fxd_tmrw_data[i]['date'] = tmrw_data[0]['date']
-            fxd_tmrw_data[i]['hour'] = (i)
-            if (int(tmrw_data[ii]['hour']) == i):
-                fxd_tmrw_data[i]['price'] = tmrw_data[ii]['price']
-                ii = ii + 1
-            else:
-                fxd_tmrw_data[i]['price'] = fxd_tmrw_data[i - 1]['price']
+    fxd_tmrw_data, _ = aggregate_day(tmrw_combined, tmrw_date)
+
+    # fxd_today_data[0]['date'] = today_data[0]['date']
+    # fxd_today_data[0]['hour'] = 0  # today_data[0]['hour']
+    #
+    # fxd_tmrw_data[0]['date'] = today_data[-1]['date']
+    # fxd_tmrw_data[0]['hour'] = int(today_data[-1]['hour'])
+    # fxd_tmrw_data[0]['price'] = today_data[-1]['price']
+    # ii = 0
+    # for i in range(1, 24):
+    #     fxd_today_data[i]['date'] = today_data[0]['date']
+    #     fxd_today_data[i]['hour'] = (i)
+    #     if (int(today_data[ii]['hour']) == i):
+    #         fxd_today_data[i]['price'] = today_data[ii]['price']
+    #         ii = ii + 1
+    #     else:
+    #         fxd_today_data[i]['price'] = fxd_today_data[i-1]['price']
+    #
+    # if (len(tmrw_data) > 0):
+    #     ii = 0
+    #     for i in range(1, 24):
+    #         fxd_tmrw_data[i]['date'] = tmrw_data[0]['date']
+    #         fxd_tmrw_data[i]['hour'] = (i)
+    #         if (int(tmrw_data[ii]['hour']) == i):
+    #             fxd_tmrw_data[i]['price'] = tmrw_data[ii]['price']
+    #             ii = ii + 1
+    #         else:
+    #             fxd_tmrw_data[i]['price'] = fxd_tmrw_data[i - 1]['price']
 
     return fxd_today_data, fxd_tmrw_data
 def elec_fetch_loop(stop_event, queue_out):
@@ -215,7 +268,9 @@ def elec_fetch_loop(stop_event, queue_out):
             # Detect date change and rotate data
             if last_fetch_date and today_str != last_fetch_date:
                 today_data = tmrw_data
+                tmrw_0hr_price = ylihum_0hr_price
                 tmrw_data = []
+                ylihum_0hr_price = float('nan')
                 last_fetch_date = today_str
                 today_data_alrdy_fixed = True
                 logger.info("Date changed — shifted tmrw_data to today_data.")
@@ -223,7 +278,8 @@ def elec_fetch_loop(stop_event, queue_out):
             if not today_data:
                 fetched_tday = fetch_elec_data(now)
                 if fetched_tday:
-                    today_data = fetched_tday
+                    fxd_today_data, tmrw_0hr_price = fix_raw_elec_data(fetched_tday)
+                    today_data = fxd_today_data
                     last_fetch_date = today_str
                     logger.debug("Fetched todays data")
                 # else:
@@ -236,7 +292,9 @@ def elec_fetch_loop(stop_event, queue_out):
                 next_day = now + timedelta(days=1)
                 fetched_tmrw = fetch_elec_data(next_day)
                 if fetched_tmrw:
-                    tmrw_data = fetched_tmrw
+                    fxd_tmrw_data, ylihum_0hr_price = fix_raw_elec_data(fetched_tmrw)
+                    fxd_tmrw_data[0]['price'] = tmrw_0hr_price
+                    tmrw_data = fxd_tmrw_data
                     logger.debug("Fetched tmrw data")
             #         else:
             #             logger.warning(f'No data for tmrw')
@@ -252,7 +310,7 @@ def elec_fetch_loop(stop_event, queue_out):
 
             if today_data:
                 # If today’s data is valid, fix and send even if tmrw_data is not present
-                fxd_today_data, fxd_tmrw_data = fix_elec_data(today_data, tmrw_data, today_data_alrdy_fixed)
+                #fxd_today_data, fxd_tmrw_data = fix_elec_data(today_data, tmrw_data, today_data_alrdy_fixed)
                 data_bundle = {
                     'today': fxd_today_data,
                     'tmrw': fxd_tmrw_data
