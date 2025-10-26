@@ -10,7 +10,7 @@ from statistics import mean
 
 
 logger = Log.get_logger(__name__)
-Log().change_log_level(__name__, Log.DEBUG)
+Log().change_log_level(__name__, Log.WARNING)
 
 
 def utc_time_to_local(utc_time:str) -> datetime:
