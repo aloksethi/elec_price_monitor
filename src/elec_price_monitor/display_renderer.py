@@ -47,14 +47,14 @@ def draw_battery(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, font: Im
     # Battery body rectangle
     body_box = [x, y, x + BAT_BODY_WIDTH, y + BAT_BODY_HEIGHT]
     # Rounded rectangle (battery body)
-    draw.rounded_rectangle(body_box, radius=radius, outline=(0, 0, 0), width=3, fill=None)
+    draw.rounded_rectangle(body_box, radius=radius, outline=(255, 255, 255), width=3, fill=None)
 
     # Battery stub (terminal)
     stub_x0 = x - BAT_STUB_WIDTH
     stub_y0 = y + (BAT_BODY_HEIGHT - BAT_STUB_HEIGHT) // 2
     stub_x1 = stub_x0 + BAT_STUB_WIDTH
     stub_y1 = stub_y0 + BAT_STUB_HEIGHT
-    draw.rectangle([stub_x0, stub_y0, stub_x1, stub_y1], fill=(0, 0, 0))
+    draw.rectangle([stub_x0, stub_y0, stub_x1, stub_y1], fill=(255, 255, 255))
 
     # Battery level text inside body
     percent_text = f"{battery_level_to_pctg(level)}"
@@ -68,7 +68,7 @@ def draw_battery(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, font: Im
     if (level <= 10):
         draw.text((text_x, text_y), percent_text, font=font, fill=(255, 0, 0))
     else:
-        draw.text((text_x, text_y), percent_text, font=font, fill=(0, 0, 0))
+        draw.text((text_x, text_y), percent_text, font=font, fill=(255, 255, 255))
 def get_font(font_name, font_size):
     font_paths = fm.findSystemFonts(fontpaths=None, fontext='ttf')
     for path in font_paths:
