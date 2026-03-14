@@ -1,23 +1,35 @@
+import PIL.ImageDraw
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
+import matplotlib
+matplotlib.use("Agg")  # Use non-interactive backend (works headless and on Windows/Linux)
 import matplotlib.font_manager as fm
 from queue import Empty
 import time
 import zlib
-from . import config
-from .log import Log
+import math
+from elec_price_monitor import config
+from elec_price_monitor.log import Log
 # from rest_fetcher import fetch_elec_data
 
 # no way render_iamge will work correctly if these parameters change, so no point in putting them in config
 WIDTH, HEIGHT = 648, 480
-BAT_BODY_WIDTH = 65
-BAT_BODY_HEIGHT = 20
-BAT_STUB_WIDTH = 6
-BAT_STUB_HEIGHT = 10
+# BAT_BODY_WIDTH = 65
+# BAT_BODY_HEIGHT = 20
+# BAT_STUB_WIDTH = 6
+# BAT_STUB_HEIGHT = 10
 # ROTATE_DEGREES = -90
-FONT_SIZE_HEADER = 50
+FONT_SIZE_BIG = 50
 FONT_SIZE_NORM = 20
+FONT_SIZE_SMALL = 16
 ROW_COUNT = 24
+
+LEFT_PAD  = 3
+SIDEBAR_W = 150
+TIME_W    = 70
+PRICE_W   = 150
+DASH_ON     = 2
+DASH_OFF    = 8
 
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.DEBUG)
@@ -80,62 +92,231 @@ def get_font(font_name, font_size):
     logger.error(f'Failed to find font: {font_name = }, {font_size = }')
     raise Exception("Failed to find font")
     #return font_path;
-def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime) -> Image.Image:
+
+def is_num(x):
+    try:
+        return (x is not None) and (not isinstance(x, bool)) and (not math.isnan(float(x)))
+    except Exception:
+        return False
+
+
+
+def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, weather) -> Image.Image:
+
+    """
+    Render a 648x480 (default) e-paper image with:
+      - 24 rows: Time | Today Avg | Tomorrow Avg
+      - Row separators on every row (dotted)
+      - Today column shows ▲/▼ vs today's daily avg
+      - Only the current hour's Today cell highlighted in red
+      - Right-side weather panel (Now + feels-like, +3h, +6h, precip 3h/6h, tomorrow min/max)
+
+    Parameters
+    ----------
+    device : dict
+        {
+          'width': 648,
+          'height': 480,
+          'bg': (0,0,0),
+          'fg': (255,255,255),
+          'red': (255,0,0),
+          'font_path_bold': '/path/to/your/bold.ttf',  # optional
+          'font_size': 20,        # ~20 px, bold, for rows
+          'font_size_small': 16,  # for headers and weather panel
+          'left_pad': 6,          # left padding of table
+          'sidebar_w': 150,       # weather panel width
+          'col_time_w': 86,       # compressed time column width
+          'col_today_w': 150,     # compressed today col width
+          # tomorrow width is computed to fill remaining space
+        }
+
+    today_data : list[24] of dict
+        {
+          'date': '05-06-2025',
+          'hour': str(i),
+          'price': i
+        }
+
+    tmrw_data : list[24] of dict
+        {
+          'date': '05-06-2025',
+          'hour': str(i),
+          'price': i
+        }
+
+    now : datetime
+        Current local time; used for date string and current-hour highlight.
+
+    weather : dict-like
+        May contain any subset; absent keys are simply omitted from the panel:
+        {
+          'temp_now': int|float,
+          'feels_like': int|float,       # shown in parentheses
+          'temp_plus3h': int|float,
+          'temp_plus6h': int|float,
+          'precip3h': {'rain': int, 'snow': int},
+          'precip6h': {'rain': int, 'snow': int},
+          't_minmax': {'min': int, 'max': int},  # tomorrow
+        }
+
+    Returns
+    -------
+    PIL.Image.Image
+    """
+
+    white_col = (255, 255, 255)
+    red_col = (255, 0, 0)
+    time_x  = LEFT_PAD
+    today_x = time_x + TIME_W
+    tmrw_x  = today_x + PRICE_W
+    sidebar_x = tmrw_x + PRICE_W + 0
+
     image = Image.new('RGB', (WIDTH, HEIGHT), 'black')
     draw = ImageDraw.Draw(image)
 
-    font_header = get_font('DejaVuSans-Bold', 20)#"DejaVuSans-Bold.ttf", FONT_SIZE_HEADER)
-    #font_row = get_font('DejaVuSansMono', 22)#"DejaVuSans.ttf", FONT_SIZE_NORM)
-    font_row_bold = get_font('DejaVuSansMono-Bold', 22)#"DejaVuSans.ttf", FONT_SIZE_NORM)
-    font_batt = get_font('DejaVuSansMono-Bold', 22)
-    # except IOError:
-    #     raise
-    #     font_header = ImageFont.load_default()
-    #     font_row = ImageFont.load_default()
+    font_header = get_font('DejaVuSans-Bold', FONT_SIZE_NORM)
+    font_row_bold = get_font('DejaVuSans-Bold', FONT_SIZE_SMALL)
+    font_row = get_font('DejaVuSans', FONT_SIZE_SMALL)
 
-        # Header
-    hdr_str = f"{today_data[0]['date']}"
-    # hdr_str = f'{device['date']}    Battery: {device['batt']}%'
+    def draw_center_text(_x, _y, _width, _txt, _font, _color):
+        bbox = draw.textbbox((0, 0), _txt, font=_font)
+        text_width = bbox[2] - bbox[0]
+        x_pos = _x + (_width - text_width) // 2
+        draw.text((x_pos, _y), _txt, font=_font, fill=_color)
 
-    # print(f'{hdr_str:^{324-len(hdr_str)}}')
-    # draw.text((0, 10), f'{hdr_str}', font=font_header, fill=(0, 0, 0))
-    hdr_y = 0;#10
-    bbox = draw.textbbox((0, 0), hdr_str, font=font_header)
-    text_width = bbox[2] - bbox[0]
-    x_pos = (WIDTH - text_width) // 2
-    draw.text((x_pos, hdr_y), hdr_str, font=font_header, fill=(255, 255, 255))
-    draw_battery(draw, x=WIDTH - 80, y=hdr_y, level=device['batt'], font=font_batt)
+    def draw_price(_x, _y, _price, _avg, _font, _color):
+        t1 = "—" if not is_num(_price) else f"{float(_price):>05.1f}"
+        mark = "▲" if _price > _avg else ("▼" if _price < _avg else "")
+        tmp = f"{mark + " " + t1}"
+        draw_center_text(_x, _y, PRICE_W, tmp, _font, txt_col)
 
-    dividr_y = hdr_y + BAT_BODY_HEIGHT + 0
-    draw.line((0, dividr_y, WIDTH, dividr_y), width=2, fill=(255, 255, 255))
-    # Rows start below header
-    start_y = dividr_y + 0
-    row_height = (HEIGHT - start_y - 4*2) // 24  # fit 24 rows
+    def avg_val(_data):
+        tmp = [v['price']
+                       for v in _data
+                       if v['price'] is not None and not math.isnan(float(v['price']))
+                       ]
+        return round(sum(tmp) / len(tmp),1) if tmp else None
 
+    # Top row
+    date_str = f"{today_data[0]['date']}"
+    draw_center_text(0, 0, WIDTH, date_str, font_header, white_col)
+    nxt_y = FONT_SIZE_NORM
+
+    draw.line([(0, nxt_y + 1), (WIDTH, nxt_y + 1)], width=1)
+    nxt_y = nxt_y + 1
+
+    # header row
+    draw_center_text(time_x, nxt_y, TIME_W, "Time", font_row_bold, white_col)
+    draw_center_text(today_x, nxt_y, PRICE_W, "Today Avg", font_row_bold, white_col)
+    draw_center_text(tmrw_x, nxt_y, PRICE_W, "Tomorrow Avg", font_row_bold, white_col)
+    nxt_y = nxt_y + FONT_SIZE_SMALL
+
+    # row separator lines
+    top = nxt_y
+    available_h = HEIGHT - top - 2
+    row_h = max(available_h // 24, FONT_SIZE_SMALL)  # guarantees 24 rows within the space
+    bottom = top + row_h * 24
+    # Dashed row separators (every row)
+    for i in range(25):
+        y = top + i * row_h
+        x = 0
+        while x < WIDTH:
+            draw.line([(x, y), (min(x + DASH_ON, WIDTH), y)], fill=white_col, width=1)
+            x += DASH_ON + DASH_OFF
+
+    # Vertical guides TODO COME BACK HERE n check this 6
+    draw.line([(today_x, top), (today_x, bottom)], fill=white_col, width=1)
+    draw.line([(tmrw_x, top), (tmrw_x, bottom)], fill=white_col, width=1)
+    draw.line([(sidebar_x, top), (sidebar_x, bottom)], fill=white_col, width=1)
+
+
+    today_avg = avg_val(today_data)
+    tmrw_avg = avg_val(tmrw_data)
+
+    # Row renderer
     for i in range(24):
-        y = start_y + i * (row_height + 1)
+         y = nxt_y + i * row_h + (row_h - FONT_SIZE_SMALL) // 2
 
-        hour = today_data[i]['hour']
-        # print(f'{hour = }, {now.hour = }')
-        if int(hour) == now.hour:
-            font_to_use = font_row_bold
-            txt_col = (255,0,0)
+         hour = today_data[i]['hour']
+         price_today = today_data[i]['price']
+         price_tmrw = tmrw_data[i]['price']
+
+         if int(hour) == now.hour:
+             font_to_use = font_row_bold
+             txt_col = red_col
+         else:
+             font_to_use = font_row_bold
+             txt_col = white_col
+
+         draw_center_text(time_x, y, TIME_W, f"{hour:>02}:00", font_to_use, txt_col)
+         draw_price(today_x, y, price_today, today_avg, font_to_use, font_to_use)
+         draw_price(tmrw_x, y, price_tmrw, tmrw_avg, font_to_use, font_to_use)
+
+    # ---------- Weather sidebar ----------
+    # Title
+    draw.text((sidebar_x, top - 16), "Weather", fill=white_col, font=font_row_bold)
+
+    line_y = top
+
+    def put_line(txt: str, color=white_col):
+        nonlocal line_y
+        draw.text((sidebar_x, line_y), txt, fill=color, font=font_row)
+        line_y += (FONT_SIZE_SMALL + 2)
+
+    # Weather can be dict-like; use getattr/get to be forgiving
+    def get_nested(m, *keys):
+        cur = m
+        for k in keys:
+            try:
+                cur = cur.get(k) if isinstance(cur, dict) else getattr(cur, k, None)
+            except Exception:
+                return None
+        return cur
+
+    temp_now = get_nested(weather, 'temp_now')
+    feels_like = get_nested(weather, 'feels_like')
+    t_plus3 = get_nested(weather, 'temp_plus3h')
+    t_plus6 = get_nested(weather, 'temp_plus6h')
+    precip3 = get_nested(weather, 'precip3h')
+    precip6 = get_nested(weather, 'precip6h')
+    tmm = get_nested(weather, 't_minmax')
+
+    # Current temp (+ feels like)
+    if temp_now is not None:
+        if feels_like is not None:
+            put_line(f"Now: {temp_now}° ({feels_like}°)")
         else:
-            font_to_use = font_row_bold
-            txt_col = (255, 255, 255)
+            put_line(f"Now: {temp_now}°")
 
+    # +3h and +6h temperatures
+    if t_plus3 is not None:
+        put_line(f"+3h: {t_plus3}°")
+    if t_plus6 is not None:
+        put_line(f"+6h: {t_plus6}°")
 
-        price_today = today_data[i]['price']
-        price_tmrw = tmrw_data[i]['price']
+    # Precipitation helper: render compact Rxx% Syy%
+    def fmt_precip(p):
+        if not isinstance(p, dict):
+            return None
+        parts = []
+        r = p.get('rain', None)
+        s = p.get('snow', None)
+        if r is not None:
+            parts.append(f"R{int(r)}%")
+        if s is not None:
+            parts.append(f"S{int(s)}%")
+        return " ".join(parts) if parts else None
 
-        draw.text((10, y), f"{hour:>02}:00", font=font_to_use, fill=txt_col)
-        draw.text((80, y), f"{price_today:10.01f}", font=font_to_use, fill=txt_col)
-        draw.text((200, y), f"{price_tmrw:10.01f}", font=font_row_bold, fill=(255, 255, 255))
+    p3s = fmt_precip(precip3)
+    p6s = fmt_precip(precip6)
+    if p3s:
+        put_line(f"Precip 3h: {p3s}")
+    if p6s:
+        put_line(f"Precip 6h: {p6s}")
 
-    #    draw.line((5, y + 2 + row_height, 340, y + 2 + row_height), width=1, fill=(0,0,0))
-
-    #draw.line((5, start_y, 5, y+row_height+1), width=1, fill=(0, 0, 0))
-    #draw.line((340, start_y, 340, y+row_height+1), width=1, fill=(0, 0, 0))
+    # Tomorrow min/max
+    if isinstance(tmm, dict) and (tmm.get('min') is not None) and (tmm.get('max') is not None):
+        put_line(f"Tomorrow: {int(tmm['min'])}°/{int(tmm['max'])}°")
 
     return image
 
@@ -246,7 +427,7 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
                 red_zlib_buf = zlib.compress(red_buf, 9)
                 blk_zlib_buf = zlib.compress(blk_buf, 9)
                 img_data_queue.put((red_zlib_buf, blk_zlib_buf))
-                if (config.DEBUG and config.DUMP_IMG_BUFF):
+                if (config.DUMP_IMG_BUFF):
                     logger.debug(f"Saving raw buffers")
                     with open(Log().log_dir / "red_buf_bin", 'wb') as f: f.write(red_buf)
                     with open(Log().log_dir / "blk_buf_bin", 'wb') as f: f.write(blk_buf)
