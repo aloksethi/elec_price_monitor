@@ -64,7 +64,7 @@ def update_from_args(args):
     if args.debug is not None:
         DEBUG = args.debug
     if args.dump_img_buf is not None:
-        DUMP_IMG_BUFF = args.debug
+        DUMP_IMG_BUFF = args.dump_img_buf
     if args.py_port is not None:
         PY_PORT = args.py_port
     if args.uc_port is not None:
