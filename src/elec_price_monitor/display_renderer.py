@@ -24,10 +24,10 @@ FONT_SIZE_NORM = 20
 FONT_SIZE_SMALL = 16
 ROW_COUNT = 24
 
-LEFT_PAD  = 3
-SIDEBAR_W = 150
+LEFT_PAD  = 0
 TIME_W    = 70
 PRICE_W   = 150
+SIDEBAR_W = WIDTH - TIME_W - 2*PRICE_W
 DASH_ON     = 2
 DASH_OFF    = 8
 
@@ -206,28 +206,31 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
     nxt_y = nxt_y + 1
 
     # header row
-    draw_center_text(time_x, nxt_y, TIME_W, "Time", font_row_bold, white_col)
-    draw_center_text(today_x, nxt_y, PRICE_W, "Today Avg", font_row_bold, white_col)
-    draw_center_text(tmrw_x, nxt_y, PRICE_W, "Tomorrow Avg", font_row_bold, white_col)
+    header_y = nxt_y
+    draw_center_text(time_x, header_y, TIME_W, "Time", font_row_bold, white_col)
+    draw_center_text(today_x, header_y, PRICE_W, "Today Avg", font_row_bold, white_col)
+    draw_center_text(tmrw_x, header_y, PRICE_W, "Tomorrow Avg", font_row_bold, white_col)
     nxt_y = nxt_y + FONT_SIZE_SMALL
 
     # row separator lines
-    top = nxt_y
-    available_h = HEIGHT - top - 2
+    data_top = nxt_y
+    available_h = HEIGHT - data_top - 2
     row_h = max(available_h // 24, FONT_SIZE_SMALL)  # guarantees 24 rows within the space
-    bottom = top + row_h * 24
+    bottom = data_top + row_h * 24
     # Dashed row separators (every row)
     for i in range(25):
-        y = top + i * row_h
+        y = data_top + i * row_h
         x = 0
         while x < WIDTH:
+            if (x >= TIME_W + PRICE_W + PRICE_W) and (i):
+                break
             draw.line([(x, y), (min(x + DASH_ON, WIDTH), y)], fill=white_col, width=1)
             x += DASH_ON + DASH_OFF
 
     # Vertical guides TODO COME BACK HERE n check this 6
-    draw.line([(today_x, top), (today_x, bottom)], fill=white_col, width=1)
-    draw.line([(tmrw_x, top), (tmrw_x, bottom)], fill=white_col, width=1)
-    draw.line([(sidebar_x, top), (sidebar_x, bottom)], fill=white_col, width=1)
+    draw.line([(today_x, header_y), (today_x, bottom)], fill=white_col, width=1)
+    draw.line([(tmrw_x, header_y), (tmrw_x, bottom)], fill=white_col, width=1)
+    draw.line([(sidebar_x, header_y), (sidebar_x, bottom)], fill=white_col, width=1)
 
 
     today_avg = avg_val(today_data)
@@ -253,15 +256,13 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
          draw_price(tmrw_x, y, price_tmrw, tmrw_avg, font_to_use, font_to_use)
 
     # ---------- Weather sidebar ----------
-    # Title
-    draw.text((sidebar_x, top - 16), "Weather", fill=white_col, font=font_row_bold)
+    draw_center_text(sidebar_x, header_y, SIDEBAR_W, "Weather", font_row_bold, white_col)
+    nxt_y = data_top + 2
 
-    line_y = top
-
-    def put_line(txt: str, color=white_col):
-        nonlocal line_y
-        draw.text((sidebar_x, line_y), txt, fill=color, font=font_row)
-        line_y += (FONT_SIZE_SMALL + 2)
+    def draw_weather_line(_txt: str):
+        nonlocal nxt_y
+        draw_center_text(sidebar_x, nxt_y, SIDEBAR_W, _txt, font_row_bold, white_col)
+        nxt_y += (FONT_SIZE_SMALL + 2)
 
     # Weather can be dict-like; use getattr/get to be forgiving
     def get_nested(m, *keys):
@@ -284,15 +285,15 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
     # Current temp (+ feels like)
     if temp_now is not None:
         if feels_like is not None:
-            put_line(f"Now: {temp_now}° ({feels_like}°)")
+            draw_weather_line(f"Now: {temp_now}° ({feels_like}°)")
         else:
-            put_line(f"Now: {temp_now}°")
+            draw_weather_line(f"Now: {temp_now}°")
 
     # +3h and +6h temperatures
     if t_plus3 is not None:
-        put_line(f"+3h: {t_plus3}°")
+        draw_weather_line(f"+3h: {t_plus3}°")
     if t_plus6 is not None:
-        put_line(f"+6h: {t_plus6}°")
+        draw_weather_line(f"+6h: {t_plus6}°")
 
     # Precipitation helper: render compact Rxx% Syy%
     def fmt_precip(p):
@@ -310,13 +311,13 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
     p3s = fmt_precip(precip3)
     p6s = fmt_precip(precip6)
     if p3s:
-        put_line(f"Precip 3h: {p3s}")
+        draw_weather_line(f"Precip 3h: {p3s}")
     if p6s:
-        put_line(f"Precip 6h: {p6s}")
+        draw_weather_line(f"Precip 6h: {p6s}")
 
     # Tomorrow min/max
     if isinstance(tmm, dict) and (tmm.get('min') is not None) and (tmm.get('max') is not None):
-        put_line(f"Tomorrow: {int(tmm['min'])}°/{int(tmm['max'])}°")
+        draw_weather_line(f"Tomorrow: {int(tmm['min'])}°/{int(tmm['max'])}°")
 
     return image
 
