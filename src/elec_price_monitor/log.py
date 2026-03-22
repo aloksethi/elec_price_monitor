@@ -4,7 +4,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import platform
-from . import config
+from elec_price_monitor import config
 #import pdb
 class Log:
     # Class variables/attributes for singleton pattern. they are equivalent to global variables

@@ -1,5 +1,5 @@
-from .log import Log
-from . import config
+from elec_price_monitor.log import Log
+from elec_price_monitor import config
 from datetime import datetime
 import errno
 import socket

@@ -377,10 +377,11 @@ def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
 #     output.append(count)
 #
 #     return bytes(output)
-def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
+def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue, weather_data_queue=None):
     latest_today_data = []
     latest_tmrw_data = []
     latest_device = {'batt': 0, 'date': '00-00-0000'}
+    latest_weather = {}
 
     while not stop_event.is_set():
         try:
@@ -420,8 +421,16 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue):
             except Empty:
                 logger.debug("No new device info. Using last known device state.")
 
+            if weather_data_queue is not None:
+                try:
+                    while not weather_data_queue.empty():
+                        latest_weather = weather_data_queue.get_nowait()
+                        logger.debug("Updated weather data.")
+                except Empty:
+                    pass
+
             try:
-                img = render_image(latest_device, latest_today_data, latest_tmrw_data, now)
+                img = render_image(latest_device, latest_today_data, latest_tmrw_data, now, latest_weather)
                 red_buf, blk_buf = gen_pixel_buff(img)
                 # red_encoded_buf = rle_encode(red_buf)
                 # img_data_queue.put((red_buf, blk_buf))

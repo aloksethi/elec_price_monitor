@@ -1,8 +1,9 @@
-from .rest_fetcher import elec_fetch_loop
-from .display_renderer import renderer_loop
-from .local_comm import device_loop
-from .log import Log
-from . import config
+from elec_price_monitor.rest_fetcher import elec_fetch_loop
+from elec_price_monitor.display_renderer import renderer_loop
+from elec_price_monitor.local_comm import device_loop
+from elec_price_monitor.weather_fetcher import weather_fetch_loop
+from elec_price_monitor.log import Log
+from elec_price_monitor import config
 import argparse
 
 import threading
@@ -41,11 +42,13 @@ def main():
     elec_data_queue = Queue() #used for transfering data from rest_fetcher to display_renderer module,
     img_data_queue = Queue() #for transfering rendered image to the local server
     status_queue = Queue() # for transfering pico status to renderer
+    weather_data_queue = Queue()  # weather_fetcher -> renderer
     stop_event = threading.Event() #kill signal
 
     threads = {
         "elec_fetch_loop": threading.Thread(target=elec_fetch_loop, args=(stop_event, elec_data_queue,), name="elec_fetch_loop"),
-        "renderer_loop": threading.Thread(target=renderer_loop, args=(stop_event, elec_data_queue, status_queue, img_data_queue), name="renderer_loop"),
+        "weather_fetch_loop": threading.Thread(target=weather_fetch_loop, args=(stop_event, weather_data_queue,), name="weather_fetch_loop"),
+        "renderer_loop": threading.Thread(target=renderer_loop, args=(stop_event, elec_data_queue, status_queue, img_data_queue, weather_data_queue), name="renderer_loop"),
         "device_loop": threading.Thread(target=device_loop, args=(stop_event, status_queue, img_data_queue), name="device_loop"),
     }
 

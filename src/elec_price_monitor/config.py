@@ -3,7 +3,7 @@ import struct
 APP_NAME = "elec_price_monitor"
 DEBUG = True
 MOCK_REST_DATA = False
-DUMP_IMG_BUFF = False
+DUMP_IMG_BUFF = True
 
 SLEEP_DUR_NO_DATA: int = 5
 SLEEP_DUR_NO_TMRW_DATA: int = 30 * 60
@@ -17,6 +17,11 @@ else:
 PY_PORT = 6666  #udp port for the server running at python
 UC_PORT = 6667  #udp port for the server running at uC
 UC_IP = "127.0.0.1"
+
+# use the following querry to get list of stations
+# https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::ef::stations
+FMI_FMISID = 108040  # FMI observation/forecast site ID (e.g. 108040)
+WEATHER_FETCH_INTERVAL = 30 * 60  # seconds between weather fetches
 CHUNK_SIZE = 1400 #1400 bytes in one udp packet, image size of one channel is uncompressed 38K n 2K compressed.
 MAX_SEQ_NUM = 4
 """
