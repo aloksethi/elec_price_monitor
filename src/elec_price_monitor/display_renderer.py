@@ -261,8 +261,10 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
 
     def draw_weather_line(_txt: str):
         nonlocal nxt_y
-        draw_center_text(sidebar_x, nxt_y, SIDEBAR_W, _txt, font_row_bold, white_col)
-        nxt_y += (FONT_SIZE_SMALL + 2)
+        #draw_center_text(sidebar_x, nxt_y, SIDEBAR_W, _txt, font_row_bold, white_col)
+        #nxt_y += (FONT_SIZE_SMALL + 2)
+        draw_center_text(sidebar_x, nxt_y, SIDEBAR_W, _txt, font_header, white_col)
+        nxt_y += (FONT_SIZE_NORM + 2)
 
     # Weather can be dict-like; use getattr/get to be forgiving
     def get_nested(m, *keys):
@@ -343,7 +345,7 @@ def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
                 # Basic thresholding: exact match
                 if pixel == (0, 0, 0):  # Black
                     black_byte |= bit
-                elif pixel in [(255, 0, 0), (200, 0, 0)]:  # Red (tolerate dark red)
+                elif pixel in [(255, 0, 0), (100, 0, 0)]:  # Red (tolerate dark red)
                     red_byte |= bit
                 # else white or other color → 0 in both
 
