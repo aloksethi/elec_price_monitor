@@ -74,6 +74,7 @@ def safe_sendto (sock:socket.socket, addr: tuple[str, int], data:bytes, retries:
     while attempts < retries:
         try:
             sent = sock.sendto(data, addr)
+            logger.debug(f"no scoket error, {sent=}, {addr=}\n")
             return sent
         except socket.error as e:
             if e.errno == errno.EINTR:
