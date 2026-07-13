@@ -165,13 +165,16 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
     """
 
     white_col = (255, 255, 255)
+    white_col = (0,0,0)
     red_col = (255, 0, 0)
     time_x  = LEFT_PAD
     today_x = time_x + TIME_W
     tmrw_x  = today_x + PRICE_W
     sidebar_x = tmrw_x + PRICE_W + 0
 
-    image = Image.new('RGB', (WIDTH, HEIGHT), 'black')
+#    image = Image.new('RGB', (WIDTH, HEIGHT), 'black')
+    image = Image.new('RGB', (WIDTH, HEIGHT), 'white')
+
     draw = ImageDraw.Draw(image)
 
     font_header = get_font('DejaVuSans-Bold', FONT_SIZE_NORM)
@@ -188,7 +191,7 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
         t1 = "—" if not is_num(_price) else f"{float(_price):>05.1f}"
         mark = "▲" if _price > _avg else ("▼" if _price < _avg else "")
         tmp = f"{mark + " " + t1}"
-        draw_center_text(_x, _y, PRICE_W, tmp, _font, txt_col)
+        draw_center_text(_x, _y, PRICE_W, tmp, _font, _color)
 
     def avg_val(_data):
         tmp = [v['price']
@@ -252,8 +255,8 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
              txt_col = white_col
 
          draw_center_text(time_x, y, TIME_W, f"{hour:>02}:00", font_to_use, txt_col)
-         draw_price(today_x, y, price_today, today_avg, font_to_use, font_to_use)
-         draw_price(tmrw_x, y, price_tmrw, tmrw_avg, font_to_use, font_to_use)
+         draw_price(today_x, y, price_today, today_avg, font_to_use, white_col)
+         draw_price(tmrw_x, y, price_tmrw, tmrw_avg, font_to_use, white_col)
 
     # ---------- Weather sidebar ----------
     draw_center_text(sidebar_x, header_y, SIDEBAR_W, "Weather", font_row_bold, white_col)
@@ -337,17 +340,33 @@ def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
             red_byte = 0
 
             for i in range(8):
-                pixel = img.getpixel((x + i, y))
+                curr_x = x + i
+                
+                # Safeguard: If the image width isn't a perfect multiple of 8, 
+                # this stops checking pixels and leaves remaining bits as 0.
+                if curr_x >= width:
+                    break  
+                
+                r,g,b = img.getpixel((curr_x, y))
+                #pixel = img.getpixel((x + i, y))
 
                 # MSB first, so bit index = 7 - i
                 bit = 1 << (7 - i)
 
                 # Basic thresholding: exact match
-                if pixel == (0, 0, 0):  # Black
-                    black_byte |= bit
-                elif pixel in [(255, 0, 0), (100, 0, 0)]:  # Red (tolerate dark red)
-                    red_byte |= bit
+                #if pixel == (0, 0, 0):  # Black
+                #    black_byte |= bit
+                #elif pixel in [(255, 0, 0), (1, 0, 0)]:  # Red (tolerate dark red)
+                #    red_byte |= bit
                 # else white or other color → 0 in both
+
+                # 1. Dark pixels become Black
+                if r < 32 and g < 32 and b < 32:
+                    black_byte |= bit
+                # 2. Strong red dominance becomes Red
+                # Captures anti-aliased blended pink/orange edge pixels
+                elif r > 100 and (r - g) > 40 and (r - b) > 40:
+                    red_byte |= bit
 
             black_buffer.append(black_byte)
             red_buffer.append(red_byte)
@@ -441,8 +460,8 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue, wea
                 img_data_queue.put((red_zlib_buf, blk_zlib_buf))
                 if (config.DUMP_IMG_BUFF):
                     logger.debug(f"Saving raw buffers")
-                    with open(Log().log_dir / "red_buf_bin", 'wb') as f: f.write(red_buf)
-                    with open(Log().log_dir / "blk_buf_bin", 'wb') as f: f.write(blk_buf)
+                    #with open(Log().log_dir / "red_buf_bin", 'wb') as f: f.write(red_buf)
+                    #with open(Log().log_dir / "blk_buf_bin", 'wb') as f: f.write(blk_buf)
                     with open(Log().log_dir / "red_buf_zbin", 'wb') as f: f.write(red_zlib_buf)
                     with open(Log().log_dir / "blk_buf_zbin", 'wb') as f: f.write(blk_zlib_buf)
                     img.save(Log().log_dir / "gen_img.png")
