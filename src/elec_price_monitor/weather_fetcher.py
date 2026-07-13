@@ -96,7 +96,7 @@ def fetch_weather() -> dict:
 
     now_utc = datetime.now(timezone.utc)
     temp_now = fetch_observations(fmisid)
-    t_plus3 = fetch_forecast(fmisid, now_utc + timedelta(hours=180))
+    t_plus3 = fetch_forecast(fmisid, now_utc + timedelta(hours=3))
     t_plus6 = fetch_forecast(fmisid, now_utc + timedelta(hours=6))
     out = {}
     if temp_now is not None:
