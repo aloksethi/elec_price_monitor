@@ -427,13 +427,17 @@ def renderer_loop(stop_event, elec_data_queue, status_queue, img_data_queue, wea
             try:
                 while not elec_data_queue.empty(): # empty the queue
                     data = elec_data_queue.get_nowait()
-                    latest_today_data = data.get("today", [])
-                    latest_tmrw_data = data.get("tmrw", []) #lets do "safe" access
-                    if (not latest_today_data):
-                        logger.info("No new today data from the queue, using old.")
-                    elif (not latest_tmrw_data):
-                        logger.info("No new tmrw data from the queue, using old.")
+                    new_today = data.get("today", [])
+                    new_tmrw = data.get("tmrw", [])
+                    if new_today:
+                        latest_today_data = new_today
                     else:
+                        logger.info("No new today data from the queue, using old.")
+                    if new_tmrw:
+                        latest_tmrw_data = new_tmrw
+                    else:
+                        logger.info("No new tmrw data from the queue, using old.")
+                    if new_today and new_tmrw:
                         logger.debug("Updated electricity data received.")
             except Empty:
                 pass  # No new data — continue with last known values
