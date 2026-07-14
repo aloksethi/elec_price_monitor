@@ -100,7 +100,6 @@ def is_num(x):
         return False
 
 
-
 def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, weather) -> Image.Image:
 
     """
