@@ -12,6 +12,13 @@ from statistics import mean
 logger = Log.get_logger(__name__)
 Log().change_log_level(__name__, Log.WARNING)
 
+PUB_NS = {'ns': 'urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3'}
+ACK_NS = {'ns': 'urn:iec62325.351:tc57wg16:451-1:acknowledgementdocument:7:0'}
+
+
+def empty_day_data(date_str=''):
+    return [{'date': date_str, 'hour': i, 'price': float('nan')} for i in range(24)]
+
 
 def utc_time_to_local(utc_time:str) -> datetime:
     # TODO: fix it for dST.
@@ -23,15 +30,28 @@ def utc_time_to_local(utc_time:str) -> datetime:
     return local_time
 
 def parse_xml(xml_data:str):
-    ns = {'ns': 'urn:iec62325.351:tc57wg16:451-3:publicationdocument:7:3'}
-
     try:
         logger.debug("Parsing XML data")
         root = ET.fromstring(xml_data)
+    except ET.ParseError as e:
+        logger.error(f"XML parse error: {e}")
+        return []
 
-        # Extract time interval
-        period_start_str = root.find('.//ns:period.timeInterval/ns:start', ns).text
-        period_end_str = root.find('.//ns:period.timeInterval/ns:end', ns).text
+    reason_elem = root.find('.//ns:Reason/ns:text', ACK_NS)
+    if reason_elem is not None and reason_elem.text:
+        logger.warning(f"ENTSO-E acknowledgement: {reason_elem.text.strip()}")
+        return []
+
+    period_start_elem = root.find('.//ns:period.timeInterval/ns:start', PUB_NS)
+    period_end_elem = root.find('.//ns:period.timeInterval/ns:end', PUB_NS)
+    if (period_start_elem is None or period_end_elem is None
+            or not period_start_elem.text or not period_end_elem.text):
+        logger.warning("No period.timeInterval found in XML response")
+        return []
+
+    try:
+        period_start_str = period_start_elem.text
+        period_end_str = period_end_elem.text
 
         period_start = utc_time_to_local(period_start_str)
         period_end = utc_time_to_local(period_end_str)
@@ -39,20 +59,20 @@ def parse_xml(xml_data:str):
         logger.info(f"Period start (local): {period_start_str}")
         logger.info(f"Period end   (local): {period_end_str}")
 
-        timeseries = root.find('ns:TimeSeries', ns)
+        timeseries = root.find('ns:TimeSeries', PUB_NS)
         if timeseries is None:
             logger.error("No <TimeSeries> element found in XML")
-            raise ValueError("No <TimeSeries> element found in XML")
+            return []
 
-        period = timeseries.find('ns:Period', ns)
+        period = timeseries.find('ns:Period', PUB_NS)
         if period is None:
             logger.error("No <Period> element found in <TimeSeries>")
-            raise ValueError("No <Period> element found in <TimeSeries>")
+            return []
 
-        resolution = period.find('ns:resolution', ns)
-        if resolution is None:
+        resolution = period.find('ns:resolution', PUB_NS)
+        if resolution is None or not resolution.text:
             logger.error("No <resolution> element found in <Period>")
-            raise ValueError("No <Resolution> element found in <Period>")
+            return []
 
         resolution_text = resolution.text
         logger.debug(f"Resolution found: {resolution_text}")
@@ -62,51 +82,33 @@ def parse_xml(xml_data:str):
         else:
             time_mult = 15
 
-        # Step 5: Extract the <Point> entries inside the <Period>
-        points = period.findall('ns:Point', ns)
+        points = period.findall('ns:Point', PUB_NS)
         logger.debug(f"Found {len(points)} <Point> entries")
 
-        # Step 6: Parse each <Point> and collect as a list of dicts
         data = []
         for point in points:
-            position = point.find('ns:position', ns)
-            price = point.find('ns:price.amount', ns)
+            position = point.find('ns:position', PUB_NS)
+            price = point.find('ns:price.amount', PUB_NS)
 
-            # Safety check for missing data
-            if position is None or price is None:
+            if position is None or price is None or not position.text or not price.text:
                 logger.warning("Missing <position> or <price.amount> in <Point>")
                 continue
 
             time_delta = time_mult * (int(position.text) - 1)
             pos_time = period_start + timedelta(minutes=time_delta)
 
-            #print(f"start time:{period_start} position:{position.text} pos_time:{pos_time}")
-            #print(f"hour: {pos_time.hour} price:{price.text}")
-            # Store as Python-native types
             data.append({
                 'date': pos_time.strftime("%d-%m-%Y"),
                 'hour': pos_time.strftime("%H"),
                 'min': pos_time.strftime("%M"),
-                'price': round(float(price.text)/10, 3) #converting from e/MWh to c/KWh
+                'price': round(float(price.text)/10, 3)
             })
         logger.debug(f"{data}")
         logger.info(f"Parsed {len(data)} data points from XML")
         return data
-    except Exception as e:  #ET.ParseError
+    except Exception as e:
         logger.error(f"XML parsing error: {e}")
-        logger.debug(f"Check if reason was returned")
-        try:
-            ns = {'ns': 'urn:iec62325.351:tc57wg16:451-1:acknowledgementdocument:7:0'}
-            reason = root.find('.//ns:Reason/ns:text', ns).text
-            logger.debug(f"Reason found: {reason}")
-        except Exception as e:
-            logger.error(f"Didn't find the reason either: {e}")
-            logger.debug("dumping the xml file")
-            logger.debug(f"{xml_data}")
-    raise
-    # except Exception as e:
-    #     logger.error(f"Unexpected error while parsing XML: {e}")
-    #     raise
+        return []
 
 def fetch_elec_data(dt:datetime) ->dict:
     api_token = os.environ.get("API_TOKEN")
@@ -134,15 +136,9 @@ def fetch_elec_data(dt:datetime) ->dict:
         response.raise_for_status()
     except Exception as e:
         logger.error(f"[ERROR] Failed to fetch API data: {e}")
+        return []
 
-    # data = response.text
-    try:
-        data = parse_xml(response.text)
-    except:
-        data = []
-        #print(data)
-
-    return data
+    return parse_xml(response.text)
 
 def aggregate_day(data, date_str, start_hour=0, end_hour=24, last_price=0):
     """Aggregate quarter-hourly data into hourly means."""
@@ -164,6 +160,9 @@ def fix_raw_elec_data(data) -> tuple[dict, dict]:
     # if daylight saving ends, then there will be two hr=3 entries and hr=1 is for the next day hr=[0] is todays 23:00 value.
     # This happens on last sunday of October
 
+    if not data:
+        return empty_day_data(), float('nan')
+
     today_date = data[0]['date']
     # Separate hour 0 (belongs to next day) from today's data
     today_main = [d for d in data if int(d['hour']) != 0]
@@ -175,84 +174,13 @@ def fix_raw_elec_data(data) -> tuple[dict, dict]:
 
     return fxd_data, tmrw_price
 
-# added third argument cause in case of day rollover, the tmrw_data becomes today_data and tmrw_data
-# was already fixed. Bug was that that todays data always had nan as value for 00 hr.
-def fix_elec_data(today_data, tmrw_data, today_data_alrdy_fixed) -> tuple[dict, dict]:
-    fxd_today_data = [{'date': '', 'hour': i, 'price': float('nan')} for i in range(24)]
-    fxd_tmrw_data = [{'date': '', 'hour': i, 'price': float('nan')} for i in range(24)]
-    #pdb.set_trace()
-
-    # do the fix only if there is no hour=0 entry in today data
-    if (today_data_alrdy_fixed == True):
-        logger.info(f"today data was already fixed, {int(today_data[0]['hour'])=}")
-        logger.info(f"hour[0] entry exists, {today_data[0]['hour']=}")
-        tmp = []
-        for i in range(4):
-            tmp.append(today_data[i]['price'])
-        fxd_today_data[0]['price'] = mean(tmp)
-    else:
-        logger.info(f"hour[0] entry does not exists, settig price to nan, {today_data[0]['hour']=}")
-        fxd_today_data[0]['price'] = float('nan')
-
-    today_date = today_data[0]['date']
-
-    # Separate hour 0 (belongs to next day) from today's data
-    today_main = [d for d in today_data if int(d['hour']) != 0]
-    tmrw_hour0 = [d for d in today_data if int(d['hour']) == 0]
-
-    # Aggregate today's data (1–23)
-    fxd_today_data, last_price = aggregate_day(today_main, today_date, start_hour=1, end_hour=24)
-
-    # --- Process tomorrow_data ---
-    if not tmrw_data:
-        # If empty, start tomorrow from the carried-over hour 0 data
-        tmrw_date = None
-        if tmrw_hour0:
-            # infer date from today + 1 day
-            from datetime import datetime, timedelta
-            tmrw_date = (datetime.strptime(today_date, "%d-%m-%Y") + timedelta(days=1)).strftime("%d-%m-%Y")
-        else:
-            tmrw_date = ''
-        tmrw_combined = tmrw_hour0
-    else:
-        # Merge hour 0 from today into tomorrow_data
-        tmrw_date = tmrw_data[0]['date']
-        tmrw_combined = tmrw_hour0 + tmrw_data
-
-    fxd_tmrw_data, _ = aggregate_day(tmrw_combined, tmrw_date)
-
-    # fxd_today_data[0]['date'] = today_data[0]['date']
-    # fxd_today_data[0]['hour'] = 0  # today_data[0]['hour']
-    #
-    # fxd_tmrw_data[0]['date'] = today_data[-1]['date']
-    # fxd_tmrw_data[0]['hour'] = int(today_data[-1]['hour'])
-    # fxd_tmrw_data[0]['price'] = today_data[-1]['price']
-    # ii = 0
-    # for i in range(1, 24):
-    #     fxd_today_data[i]['date'] = today_data[0]['date']
-    #     fxd_today_data[i]['hour'] = (i)
-    #     if (int(today_data[ii]['hour']) == i):
-    #         fxd_today_data[i]['price'] = today_data[ii]['price']
-    #         ii = ii + 1
-    #     else:
-    #         fxd_today_data[i]['price'] = fxd_today_data[i-1]['price']
-    #
-    # if (len(tmrw_data) > 0):
-    #     ii = 0
-    #     for i in range(1, 24):
-    #         fxd_tmrw_data[i]['date'] = tmrw_data[0]['date']
-    #         fxd_tmrw_data[i]['hour'] = (i)
-    #         if (int(tmrw_data[ii]['hour']) == i):
-    #             fxd_tmrw_data[i]['price'] = tmrw_data[ii]['price']
-    #             ii = ii + 1
-    #         else:
-    #             fxd_tmrw_data[i]['price'] = fxd_tmrw_data[i - 1]['price']
-
-    return fxd_today_data, fxd_tmrw_data
 def elec_fetch_loop(stop_event, queue_out):
     today_data = []
     tmrw_data = []
-    today_data_alrdy_fixed = False
+    fxd_today_data = []
+    fxd_tmrw_data = empty_day_data()
+    tmrw_0hr_price = float('nan')
+    ylihum_0hr_price = float('nan')
 
     last_sent_data = None
     last_fetch_date = None
@@ -268,11 +196,12 @@ def elec_fetch_loop(stop_event, queue_out):
             # Detect date change and rotate data
             if last_fetch_date and today_str != last_fetch_date:
                 today_data = tmrw_data
+                fxd_today_data = today_data
                 tmrw_0hr_price = ylihum_0hr_price
                 tmrw_data = []
+                fxd_tmrw_data = empty_day_data()
                 ylihum_0hr_price = float('nan')
                 last_fetch_date = today_str
-                today_data_alrdy_fixed = True
                 logger.info("Date changed — shifted tmrw_data to today_data.")
 
             if not today_data:
@@ -282,11 +211,6 @@ def elec_fetch_loop(stop_event, queue_out):
                     today_data = fxd_today_data
                     last_fetch_date = today_str
                     logger.debug("Fetched todays data")
-                # else:
-                #     # if  today_data is not available then do not call fix_elec_data
-                #     logger.error(f'No data for today')
-                #     current_data, next_data = False, False
-                #     sleep_duration = config.SLEEP_DUR_NO_DATA
 
             if today_data and now.hour >= 12 and not tmrw_data:
                 next_day = now + timedelta(days=1)
@@ -296,21 +220,8 @@ def elec_fetch_loop(stop_event, queue_out):
                     fxd_tmrw_data[0]['price'] = tmrw_0hr_price
                     tmrw_data = fxd_tmrw_data
                     logger.debug("Fetched tmrw data")
-            #         else:
-            #             logger.warning(f'No data for tmrw')
-            #             sleep_duration = config.SLEEP_DUR_NO_TMRW_DATA
-            #             current_data, next_data = True, False
-            #     fxd_today_data, fxd_tmrw_data = fix_elec_data(today_data, tmrw_data)
-            # else:
-            #     logger.debug(f'Data available for today and tmrw')
-            #     sleep_duration = config.SLEEP_DUR_DATA_AVLBL
-            #     current_data, next_data = True, True
-            #     fxd_today_data, fxd_tmrw_data = fix_elec_data(today_data, tmrw_data)
-
 
             if today_data:
-                # If today’s data is valid, fix and send even if tmrw_data is not present
-                #fxd_today_data, fxd_tmrw_data = fix_elec_data(today_data, tmrw_data, today_data_alrdy_fixed)
                 data_bundle = {
                     'today': fxd_today_data,
                     'tmrw': fxd_tmrw_data
