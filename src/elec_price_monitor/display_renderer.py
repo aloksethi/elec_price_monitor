@@ -257,7 +257,7 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
              font_to_use = font_row_bold
              txt_col = white_col
 
-         draw_center_text(time_x, y, TIME_W, f"{hour:>02}:00", font_to_use, txt_col)
+         draw_center_text(time_x, y, TIME_W, f"{int(hour):02d}:00", font_to_use, txt_col)
          draw_price(today_x, y, price_today, today_avg, font_to_use, white_col)
          draw_price(tmrw_x, y, price_tmrw, tmrw_avg, font_to_use, white_col)
 
