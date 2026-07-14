@@ -64,29 +64,26 @@ def main():
                     stop_event.set()
                     for name, t in threads.items():
                         t.join(timeout=1.0)
-                        logger.error(f'called join on thread {name}.')
-                    logger.error(f'calling sys.exit in thread {name}.')
+                        logger.debug(f'called join on thread {name}.')
+                    logger.error(f'calling sys.exit after thread {name} died.')
                     sys.exit(-1)
 
             time.sleep(2)
 
     except KeyboardInterrupt:
-        logger.warning('Received keyboard interrupt, shutting down...')
-        # Optional: Clean shutdown of threads
+        logger.info('Received keyboard interrupt, shutting down...')
         stop_event.set()
         for name, t in threads.items():
-            t.join(timeout=1.0)  # Give threads time to cleanup
-            logger.error(f'called join on thread {name}.')
-        logger.error(f'calling sys.exit in thread {name}.')
+            t.join(timeout=1.0)
+            logger.debug(f'called join on thread {name}.')
         sys.exit(0)
 
     except Exception as e:
         logger.warning(f'Interrupted:{e}')
         stop_event.set()
         for name, t in threads.items():
-            t.join(timeout=1.0)  # Give threads time to cleanup
-            logger.error(f'called join on thread {name}.')
-        logger.error(f'calling sys.exit in thread {name}.')
+            t.join(timeout=1.0)
+            logger.debug(f'called join on thread {name}.')
         sys.exit(-2)        # try:
         #     main_loop()
         # except Exception as e:
