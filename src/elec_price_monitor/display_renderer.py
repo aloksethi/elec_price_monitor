@@ -189,8 +189,11 @@ def render_image(device:dict, today_data:dict, tmrw_data:dict, now:datetime, wea
 
     def draw_price(_x, _y, _price, _avg, _font, _color):
         t1 = "—" if not is_num(_price) else f"{float(_price):>05.1f}"
-        mark = "▲" if _price > _avg else ("▼" if _price < _avg else "")
-        tmp = f"{mark + " " + t1}"
+        if _avg is not None and is_num(_price):
+            mark = "▲" if float(_price) > _avg else ("▼" if float(_price) < _avg else "")
+        else:
+            mark = ""
+        tmp = f"{mark + ' ' + t1}".strip() if mark else t1
         draw_center_text(_x, _y, PRICE_W, tmp, _font, _color)
 
     def avg_val(_data):
