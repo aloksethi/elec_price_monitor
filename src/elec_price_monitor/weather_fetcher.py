@@ -32,14 +32,19 @@ def _parse_parameter_value(elem) -> float | None:
     except ValueError:
         return None
 def _fetch_data(params):
-    try:
-        r = requests.get(FMI_WFS_BASE, params=params, timeout=15)
-        r.raise_for_status()
-        # print(r.request.url)
-        logger.debug(r.request.url)
-    except Exception as e:
-        logger.error(f"FMI forecast request failed: {e}")
-        return None
+    r = None
+    for attempt in range(3):
+        try:
+            r = requests.get(FMI_WFS_BASE, params=params, timeout=15)
+            r.raise_for_status()
+            logger.debug(r.request.url)
+            break
+        except Exception as e:
+            if attempt == 2:
+                logger.error(f"FMI forecast request failed after 3 attempts: {e}")
+                return None
+            logger.warning(f"FMI forecast request failed (attempt {attempt + 1}/3): {e}")
+            time.sleep(1)
     try:
         root = ET.fromstring(r.text)
         member = root.find(".//{http://www.opengis.net/wfs/2.0}member")
