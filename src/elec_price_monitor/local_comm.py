@@ -44,6 +44,9 @@ def handle_req_bimg_data(payload_len, latest_img_buf, send_sock, uC_addr):
     logger.debug(f"Received bimg req message")
     if payload_len != config.MSG_REQ_IMG_LEN:
         logger.warning(f"img req msg not correct size {payload_len =}")
+    if latest_img_buf is None:
+        logger.warning("No black image buffer available yet")
+        return
 
     msg_type = config.MSG_TYPE_BIMG_DATA
     send_chunked_data(latest_img_buf, msg_type, send_sock, uC_addr)
@@ -52,6 +55,9 @@ def handle_req_rimg_data(payload_len, latest_img_buf, send_sock, uC_addr):
     logger.debug(f"Received rimg req message")
     if payload_len != config.MSG_REQ_IMG_LEN:
         logger.warning(f"img req msg not correct size {payload_len =}")
+    if latest_img_buf is None:
+        logger.warning("No red image buffer available yet")
+        return
 
     msg_type = config.MSG_TYPE_RIMG_DATA
     send_chunked_data(latest_img_buf, msg_type, send_sock, uC_addr)
