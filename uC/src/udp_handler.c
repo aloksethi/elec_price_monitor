@@ -439,11 +439,11 @@ void udp_task(void *params)
         vTaskDelete(NULL);
     }
 
-    g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_msg_t));
+    g_udp_rx_queue = xQueueCreate(MAX_DATA_BUFS, sizeof(udp_qmsg_t));
     if (g_udp_rx_queue == NULL)
     {
         UC_ERROR(("failed to create udp rx queue\n"));
-        return;
+        vTaskDelete(NULL);
     }
     udp_bind(g_pcb, IP_ADDR_ANY, UC_PORT);
     udp_recv(g_pcb, udp_rx_callback, NULL); // creat the queue before regitering the callbacak

@@ -24,8 +24,8 @@ void epaper_gpios_init(void)
 
 
     spi_init(SPI_PORT, 4000 * 1000);
-    gpio_set_function(EPD_CLK_PIN, GPIO_OUT);
-    gpio_set_function(EPD_MOSI_PIN, GPIO_OUT);
+    gpio_set_function(EPD_CLK_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(EPD_MOSI_PIN, GPIO_FUNC_SPI);
 }
 
 void DEV_Digital_Write(UWORD Pin, UBYTE Value)

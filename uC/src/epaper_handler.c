@@ -20,7 +20,7 @@ void epaper_task(void *params)
         // TODO: Wait for signal, decompress buffer, update display
         //        vTaskDelay(pdMS_TO_TICKS(2000));
         ulTaskNotifyTake( pdTRUE, portMAX_DELAY );
-        UC_DEBUG("epaper started working\n");
+        UC_DEBUG(("epaper started working\n"));
         for (uint16_t i=0;i<DISP_BUFF_SIZE;i++)
         {
             bimg_buf[i] = ~bimg_buf[i];
