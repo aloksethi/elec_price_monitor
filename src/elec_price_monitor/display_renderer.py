@@ -363,7 +363,7 @@ def gen_pixel_buff(img:Image.Image) -> tuple[bytearray, bytearray]:
                 # else white or other color → 0 in both
 
                 # 1. Dark pixels become Black
-                if r < 32 and g < 32 and b < 32:
+                if r < 64 and g < 64 and b < 64:
                     black_byte |= bit
                 # 2. Strong red dominance becomes Red
                 # Captures anti-aliased blended pink/orange edge pixels
