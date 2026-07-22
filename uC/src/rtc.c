@@ -203,11 +203,11 @@ void ext_rtc_set_alarm(void)
 	ext_rtc_read_time(&curr_t); //debug version
 	
 	// need an alarm at start of every hour
-	min_val = 1;//(60 - curr_t.min)%60;// not sure how will it behave when current min is 0
-	sec_val = 1;
+	min_val = (60 - curr_t.min)%60;// not sure how will it behave when current min is 0
+	sec_val = curr_t.sec; 
 	//timer for a minute, test code
 #ifdef UC_DEBUG_ON	
-	min_val = (1 + curr_t.min)%60; // try interrupting every minute
+	min_val = (5+ curr_t.min)%60; // try interrupting every minute
 	sec_val = curr_t.sec;  
 #endif	
 	// alarm when seconds n minutes match, Table 3, A1M4=A1M3=1/ A1M2=A1M1=0

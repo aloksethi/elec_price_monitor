@@ -28,8 +28,8 @@
 #define MAX_DATA_BUFS	        2   /*number of reassemlbed buffers for udp processing. equal to the udp queue length*/
 #define MAX_UDP_EPAPER_QUEUE    1   /*writing only one buffer at a time*/
 
-#define PYTHON_IP_ADD	        "10.10.10.178"
-//#define PYTHON_IP_ADD	        "10.10.10.230" /*tux ip */
+#define PYTHON_IP_ADD	        "10.10.10.110"
+//#define PYTHON_IP_ADD	        "192.168.10.101" /*tux ip */
 
 #define MSG_TYPE_BATT_STATUS 	1 	//pico sends, contains battery status
 #define MSG_TYPE_TIME_SYNC  	2    	//if pico sends, contains no data, python replies with current time

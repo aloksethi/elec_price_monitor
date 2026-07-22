@@ -14,6 +14,9 @@
 #define MEM_LIBC_MALLOC             0
 #endif
 
+#define LWIP_DHCP                   1
+//#define CYW43_DEFAULT_IP_STA_ADDRESS    LWIP_MAKEU32(192,168,10,100) 
+
 #define MEM_ALIGNMENT               4
 #define MEM_SIZE                    4000
 //#define MEMP_NUM_TCP_SEG            32
@@ -37,7 +40,6 @@
 #define LINK_STATS                  0
 // #define ETH_PAD_SIZE                2
 #define LWIP_CHKSUM_ALGORITHM       3
-#define LWIP_DHCP                   1
 #define LWIP_IPV4                   1
 #define LWIP_TCP                    1
 #define LWIP_UDP                    1
@@ -48,7 +50,7 @@
 #define LWIP_DHCP_DOES_ACD_CHECK    0
 
 //#ifndef NDEBUG
-#define LWIP_DEBUG                  0
+#define LWIP_DEBUG                  1
 #define LWIP_STATS                  1
 #define LWIP_STATS_DISPLAY          1
 #define LWIP_NOASSERT               1
@@ -77,7 +79,7 @@
 #define TCP_FR_DEBUG                LWIP_DBG_OFF
 #define TCP_QLEN_DEBUG              LWIP_DBG_OFF
 #define TCP_RST_DEBUG               LWIP_DBG_OFF
-#define UDP_DEBUG                   LWIP_DBG_OFF
+#define UDP_DEBUG                   LWIP_DBG_ON
 #define TCPIP_DEBUG                 LWIP_DBG_OFF
 #define PPP_DEBUG                   LWIP_DBG_OFF
 #define SLIP_DEBUG                  LWIP_DBG_OFF
@@ -92,7 +94,7 @@
 #define LWIP_TIMEVAL_PRIVATE 0
 
 // not necessary, can be done either way
-#define LWIP_TCPIP_CORE_LOCKING_INPUT 1
+//#define LWIP_TCPIP_CORE_LOCKING_INPUT 1
 
 
 
