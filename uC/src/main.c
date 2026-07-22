@@ -76,7 +76,8 @@ void cy43_task(__unused void *params)
     EventBits_t uxReturn;
     while (true)
     {
-        if (cyw43_arch_init()) {
+        UC_DEBUG(("Starting the loop from start\n"));
+        if (onetime && cyw43_arch_init()) {
             UC_ERROR(("failed to initialise\n"));
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
@@ -84,8 +85,8 @@ void cy43_task(__unused void *params)
             //           return;
         }
         //cyw43_wifi_pm(&cyw43_state, CYW43_AGGRESSIVE_PM);
-        cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
-
+        //cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
+        CYW43_PERFORMANCE_PM;
         if (onetime)
         {
             create_rest_tasks();
@@ -96,18 +97,20 @@ void cy43_task(__unused void *params)
 
         cyw43_arch_enable_sta_mode();
         UC_DEBUG(("Connecting to Wi-Fi...\n"));
-        //if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) {
-        if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK))
+        if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) //{
+        //if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK))
         {
             UC_ERROR(("failed to connect to Wi-Fi.\n"));
-            vTaskDelay(pdMS_TO_TICKS(100));
-            cyw43_arch_deinit();
+            vTaskDelay(pdMS_TO_TICKS(500));
+            cyw43_arch_disable_sta_mode();
+            //cyw43_arch_deinit();
+            UC_ERROR(("deinited.\n"));
             continue;
         } 
-        
         int8_t retries = 5;
         while (retries > 0)
         {
+            UC_DEBUG(("Checking link status\n"));
             ret = cyw43_tcpip_link_status (&cyw43_state, CYW43_ITF_STA);
             if (ret == CYW43_LINK_UP)
             {
@@ -117,6 +120,7 @@ void cy43_task(__unused void *params)
             }
             else
             {
+                UC_DEBUG(("retries coutner is %d\n", retries));
                 if (ret < 0) 
                     UC_ERROR(("failed to get link status\n"));
                 else 
@@ -143,10 +147,11 @@ void cy43_task(__unused void *params)
         if (( uxReturn & ALL_SYNC_BITS ) == ALL_SYNC_BITS) 
         {
             printf("CYW43: All tasks done. Going to sleep...\n");
-            cyw43_arch_deinit(); //deinit the wifi to save power
+            //cyw43_arch_deinit(); //deinit the wifi to save power
                                  //print_task_details();
                                  //        g_do_not_sleep = 1;
-            //vTaskDelay(pdMS_TO_TICKS(30000));
+            cyw43_arch_disable_sta_mode();
+            vTaskDelay(pdMS_TO_TICKS(3000));
             sleep_fxn();
         }
         else
@@ -182,7 +187,7 @@ void sleep_fxn(void)
     // Re-enabling clock sources and generators.
     sleep_power_up();
     ext_rtc_alarm_ack();
-    ext_rtc_power_down();
+    //ext_rtc_power_down();
     printf("awake now\n");
 }
 
